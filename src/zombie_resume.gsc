@@ -11,29 +11,9 @@
 //
 // Not restored yet: perks, doors, power, box, traps, EE state, mid-round AI.
 
-main()
-{
-    level.zr_format_version = 1;
-    level.zr_mod_version = "0.1.1-dev";
-    level.zr_root = "zombie_resume";
-    level.zr_save_dir = level.zr_root + "/saves";
-
-    createDirectory(level.zr_root);
-    createDirectory(level.zr_save_dir);
-
-    // Use the canonical, non-namespaced aliases exposed by t5-gsc-utils.
-    // On Plutonium T5 r5346, names such as command::add are parsed as a
-    // cross-script reference to command.gsc and fail compilation.
-    addCommand("zsave", ::zr_cmd_save);
-    addCommand("zstatus", ::zr_cmd_status);
-    addCommand("zresume", ::zr_cmd_resume);
-
-    level thread zr_watch_round_end();
-    level thread zr_watch_players();
-    level thread zr_prepare_resume();
-
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded");
-}
+// Keep local functions in dependency order on T5 r5346.
+// This avoids linker ambiguity in raw scripts and makes any remaining
+// "unknown function" error point at an actual external/builtin dependency.
 
 zr_current_map()
 {
@@ -50,129 +30,6 @@ zr_backup_path()
     return level.zr_save_dir + "/" + zr_current_map() + ".backup.json";
 }
 
-zr_cmd_save(args)
-{
-    zr_save_game("manual");
-}
-
-zr_cmd_status(args)
-{
-    path = zr_save_path();
-    round = -1;
-
-    if (IsDefined(level.round_number))
-    {
-        round = level.round_number;
-    }
-
-    println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + round);
-    println("[T5ZR] save=" + path + " exists=" + fileExists(path));
-    println("[T5ZR] autoresume=" + GetDvar("zr_autoresume"));
-}
-
-zr_cmd_resume(args)
-{
-    path = zr_save_path();
-
-    if (!fileExists(path))
-    {
-        println("[T5ZR] No save exists for this map: " + path);
-        return;
-    }
-
-    SetDvar("zr_autoresume", "1");
-    println("[T5ZR] Restarting map and resuming latest save...");
-    executeCommand("map_restart");
-}
-
-zr_watch_round_end()
-{
-    for (;;)
-    {
-        // Stock BO1 increments level.round_number immediately before this notify.
-        // The stored value is therefore the NEXT round to play.
-        level waittill("between_round_over");
-        wait 0.05;
-        zr_save_game("autosave");
-    }
-}
-
-zr_save_game(reason)
-{
-    if (!IsDefined(level.round_number))
-    {
-        println("[T5ZR] Save skipped: round number is not initialized yet.");
-        return false;
-    }
-
-    players = GetPlayers();
-    player_data = [];
-
-    for (i = 0; i < players.size; i++)
-    {
-        player_data[player_data.size] = zr_capture_player(players[i]);
-    }
-
-    // Canonical aliases from t5-gsc-utils. Avoid json::... on r5346 for the
-    // same reason as command::... above.
-    save = createMap(
-        "format_version", level.zr_format_version,
-        "mod_version", level.zr_mod_version,
-        "map", zr_current_map(),
-        "round", level.round_number,
-        "reason", reason,
-        "player_count", players.size,
-        "players", player_data
-    );
-
-    path = zr_save_path();
-    backup = zr_backup_path();
-
-    // Keep one known-good previous save when possible.
-    if (fileExists(path))
-    {
-        writeFile(backup, readFile(path));
-    }
-
-    ok = jsonDump(path, save, 2);
-
-    if (ok)
-    {
-        println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + ")");
-    }
-    else
-    {
-        println("[T5ZR] ERROR: failed to write " + path);
-    }
-
-    return ok;
-}
-
-zr_capture_player(player)
-{
-    weapons = player GetWeaponsListPrimaries();
-    weapon_data = [];
-
-    for (i = 0; i < weapons.size; i++)
-    {
-        weapon = weapons[i];
-        weapon_data[weapon_data.size] = createMap(
-            "name", weapon,
-            "clip", player GetWeaponAmmoClip(weapon),
-            "stock", player GetWeaponAmmoStock(weapon)
-        );
-    }
-
-    return createMap(
-        "guid", "" + player GetGuid(),
-        "name", player.name,
-        "score", zr_defined_int(player.score, 0),
-        "score_total", zr_defined_int(player.score_total, zr_defined_int(player.score, 0)),
-        "current_weapon", player GetCurrentWeapon(),
-        "weapons", weapon_data
-    );
-}
-
 zr_defined_int(value, fallback)
 {
     if (!IsDefined(value))
@@ -181,47 +38,6 @@ zr_defined_int(value, fallback)
     }
 
     return Int(value);
-}
-
-zr_prepare_resume()
-{
-    if (GetDvarInt("zr_autoresume") != 1)
-    {
-        return;
-    }
-
-    path = zr_save_path();
-
-    if (!fileExists(path))
-    {
-        println("[T5ZR] Resume requested but save does not exist: " + path);
-        SetDvar("zr_autoresume", "0");
-        return;
-    }
-
-    raw = readFile(path);
-    save = jsonParse(raw);
-
-    if (!zr_validate_save(save))
-    {
-        SetDvar("zr_autoresume", "0");
-        return;
-    }
-
-    level.zr_pending_save = save;
-
-    // Wait until stock Zombies creates the round variable, then override it as
-    // early as possible. This is the critical timing point to validate in game.
-    while (!IsDefined(level.round_number))
-    {
-        wait 0.01;
-    }
-
-    level.round_number = Int(save["round"]);
-    println("[T5ZR] Prepared resume at round " + level.round_number);
-
-    // Consume once so a later restart cannot accidentally re-apply the save.
-    SetDvar("zr_autoresume", "0");
 }
 
 zr_validate_save(save)
@@ -257,43 +73,6 @@ zr_validate_save(save)
     }
 
     return true;
-}
-
-zr_watch_players()
-{
-    for (;;)
-    {
-        level waittill("connected", player);
-        player thread zr_restore_on_spawn();
-    }
-}
-
-zr_restore_on_spawn()
-{
-    self endon("disconnect");
-
-    for (;;)
-    {
-        self waittill("spawned_player");
-
-        if (!IsDefined(level.zr_pending_save))
-        {
-            continue;
-        }
-
-        // Let stock loadout initialization finish before replacing primaries.
-        wait 0.10;
-
-        saved_player = zr_find_saved_player(level.zr_pending_save["players"], self);
-
-        if (!IsDefined(saved_player))
-        {
-            println("[T5ZR] No saved state for " + self.name + " (GUID " + self GetGuid() + ")");
-            continue;
-        }
-
-        self zr_restore_player(saved_player);
-    }
 }
 
 zr_find_saved_player(saved_players, player)
@@ -368,4 +147,216 @@ zr_restore_player(saved)
 
     self iPrintLnBold("^2T5 Zombies Resume:^7 partie restauree (round " + level.round_number + ")");
     println("[T5ZR] Restored " + self.name + " score=" + self.score + " primaries=" + saved_weapons.size);
+}
+
+zr_capture_player(player)
+{
+    weapons = player GetWeaponsListPrimaries();
+    weapon_data = [];
+
+    for (i = 0; i < weapons.size; i++)
+    {
+        weapon = weapons[i];
+        weapon_data[weapon_data.size] = createMap(
+            "name", weapon,
+            "clip", player GetWeaponAmmoClip(weapon),
+            "stock", player GetWeaponAmmoStock(weapon)
+        );
+    }
+
+    return createMap(
+        "guid", "" + player GetGuid(),
+        "name", player.name,
+        "score", zr_defined_int(player.score, 0),
+        "score_total", zr_defined_int(player.score_total, zr_defined_int(player.score, 0)),
+        "current_weapon", player GetCurrentWeapon(),
+        "weapons", weapon_data
+    );
+}
+
+zr_save_game(reason)
+{
+    if (!IsDefined(level.round_number))
+    {
+        println("[T5ZR] Save skipped: round number is not initialized yet.");
+        return false;
+    }
+
+    players = GetPlayers();
+    player_data = [];
+
+    for (i = 0; i < players.size; i++)
+    {
+        player_data[player_data.size] = zr_capture_player(players[i]);
+    }
+
+    save = createMap(
+        "format_version", level.zr_format_version,
+        "mod_version", level.zr_mod_version,
+        "map", zr_current_map(),
+        "round", level.round_number,
+        "reason", reason,
+        "player_count", players.size,
+        "players", player_data
+    );
+
+    path = zr_save_path();
+    backup = zr_backup_path();
+
+    if (fileExists(path))
+    {
+        writeFile(backup, readFile(path));
+    }
+
+    ok = jsonDump(path, save, 2);
+
+    if (ok)
+    {
+        println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + ")");
+    }
+    else
+    {
+        println("[T5ZR] ERROR: failed to write " + path);
+    }
+
+    return ok;
+}
+
+zr_cmd_save(args)
+{
+    zr_save_game("manual");
+}
+
+zr_cmd_status(args)
+{
+    path = zr_save_path();
+    round = -1;
+
+    if (IsDefined(level.round_number))
+    {
+        round = level.round_number;
+    }
+
+    println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + round);
+    println("[T5ZR] save=" + path + " exists=" + fileExists(path));
+    println("[T5ZR] autoresume=" + GetDvar("zr_autoresume"));
+}
+
+zr_cmd_resume(args)
+{
+    path = zr_save_path();
+
+    if (!fileExists(path))
+    {
+        println("[T5ZR] No save exists for this map: " + path);
+        return;
+    }
+
+    SetDvar("zr_autoresume", "1");
+    println("[T5ZR] Restarting map and resuming latest save...");
+    executeCommand("map_restart");
+}
+
+zr_watch_round_end()
+{
+    for (;;)
+    {
+        level waittill("between_round_over");
+        wait 0.05;
+        zr_save_game("autosave");
+    }
+}
+
+zr_restore_on_spawn()
+{
+    self endon("disconnect");
+
+    for (;;)
+    {
+        self waittill("spawned_player");
+
+        if (!IsDefined(level.zr_pending_save))
+        {
+            continue;
+        }
+
+        wait 0.10;
+
+        saved_player = zr_find_saved_player(level.zr_pending_save["players"], self);
+
+        if (!IsDefined(saved_player))
+        {
+            println("[T5ZR] No saved state for " + self.name + " (GUID " + self GetGuid() + ")");
+            continue;
+        }
+
+        self zr_restore_player(saved_player);
+    }
+}
+
+zr_watch_players()
+{
+    for (;;)
+    {
+        level waittill("connected", player);
+        player thread zr_restore_on_spawn();
+    }
+}
+
+zr_prepare_resume()
+{
+    if (GetDvarInt("zr_autoresume") != 1)
+    {
+        return;
+    }
+
+    path = zr_save_path();
+
+    if (!fileExists(path))
+    {
+        println("[T5ZR] Resume requested but save does not exist: " + path);
+        SetDvar("zr_autoresume", "0");
+        return;
+    }
+
+    raw = readFile(path);
+    save = jsonParse(raw);
+
+    if (!zr_validate_save(save))
+    {
+        SetDvar("zr_autoresume", "0");
+        return;
+    }
+
+    level.zr_pending_save = save;
+
+    while (!IsDefined(level.round_number))
+    {
+        wait 0.01;
+    }
+
+    level.round_number = Int(save["round"]);
+    println("[T5ZR] Prepared resume at round " + level.round_number);
+    SetDvar("zr_autoresume", "0");
+}
+
+main()
+{
+    level.zr_format_version = 1;
+    level.zr_mod_version = "0.1.2-dev";
+    level.zr_root = "zombie_resume";
+    level.zr_save_dir = level.zr_root + "/saves";
+
+    createDirectory(level.zr_root);
+    createDirectory(level.zr_save_dir);
+
+    addCommand("zsave", ::zr_cmd_save);
+    addCommand("zstatus", ::zr_cmd_status);
+    addCommand("zresume", ::zr_cmd_resume);
+
+    level thread zr_watch_round_end();
+    level thread zr_watch_players();
+    level thread zr_prepare_resume();
+
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded");
 }
