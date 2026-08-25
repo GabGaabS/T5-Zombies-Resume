@@ -1,0 +1,9 @@
+# Local test saves / logs
+zombie_resume/
+*.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
