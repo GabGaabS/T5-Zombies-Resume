@@ -14,17 +14,19 @@
 main()
 {
     level.zr_format_version = 1;
-    level.zr_mod_version = "0.1.0";
+    level.zr_mod_version = "0.1.1-dev";
     level.zr_root = "zombie_resume";
     level.zr_save_dir = level.zr_root + "/saves";
 
     createDirectory(level.zr_root);
     createDirectory(level.zr_save_dir);
 
-    // t5-gsc-utils server/host console commands.
-    command::add("zsave", ::zr_cmd_save);
-    command::add("zstatus", ::zr_cmd_status);
-    command::add("zresume", ::zr_cmd_resume);
+    // Use the canonical, non-namespaced aliases exposed by t5-gsc-utils.
+    // On Plutonium T5 r5346, names such as command::add are parsed as a
+    // cross-script reference to command.gsc and fail compilation.
+    addCommand("zsave", ::zr_cmd_save);
+    addCommand("zstatus", ::zr_cmd_status);
+    addCommand("zresume", ::zr_cmd_resume);
 
     level thread zr_watch_round_end();
     level thread zr_watch_players();
@@ -80,7 +82,7 @@ zr_cmd_resume(args)
 
     SetDvar("zr_autoresume", "1");
     println("[T5ZR] Restarting map and resuming latest save...");
-    command::execute("map_restart");
+    executeCommand("map_restart");
 }
 
 zr_watch_round_end()
@@ -111,7 +113,9 @@ zr_save_game(reason)
         player_data[player_data.size] = zr_capture_player(players[i]);
     }
 
-    save = json::create_map(
+    // Canonical aliases from t5-gsc-utils. Avoid json::... on r5346 for the
+    // same reason as command::... above.
+    save = createMap(
         "format_version", level.zr_format_version,
         "mod_version", level.zr_mod_version,
         "map", zr_current_map(),
@@ -130,7 +134,7 @@ zr_save_game(reason)
         writeFile(backup, readFile(path));
     }
 
-    ok = json::dump(path, save, 2);
+    ok = jsonDump(path, save, 2);
 
     if (ok)
     {
@@ -152,14 +156,14 @@ zr_capture_player(player)
     for (i = 0; i < weapons.size; i++)
     {
         weapon = weapons[i];
-        weapon_data[weapon_data.size] = json::create_map(
+        weapon_data[weapon_data.size] = createMap(
             "name", weapon,
             "clip", player GetWeaponAmmoClip(weapon),
             "stock", player GetWeaponAmmoStock(weapon)
         );
     }
 
-    return json::create_map(
+    return createMap(
         "guid", "" + player GetGuid(),
         "name", player.name,
         "score", zr_defined_int(player.score, 0),
@@ -196,7 +200,7 @@ zr_prepare_resume()
     }
 
     raw = readFile(path);
-    save = json::parse(raw);
+    save = jsonParse(raw);
 
     if (!zr_validate_save(save))
     {
