@@ -14,12 +14,14 @@ $PluginUrl = "https://github.alicent.cat/t5-gsc-utils/t5-gsc-utils.dll"
 
 $T5Root = Join-Path $PlutoniumRoot "storage\t5"
 $SpScriptsDir = Join-Path $T5Root "scripts\sp"
-$ScriptTarget = Join-Path $SpScriptsDir "zombie_resume.gsc"
+$ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
+$ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
 
-# Previous installer versions copied the script into per-map folders or
-# scripts\sp\zom. Keep ONE copy directly in scripts\sp on current T5 SP builds.
+# The current T5 r5346 logs show that scripts directly under scripts\sp are
+# also loaded by the frontend. Keep T5 Zombies Resume under scripts\sp\zom
+# so Plutonium only loads it for the Zombies gametype.
 $OldScriptTargets = @(
-    (Join-Path (Join-Path $SpScriptsDir "zom") "zombie_resume.gsc"),
+    (Join-Path $SpScriptsDir "zombie_resume.gsc"),
     (Join-Path (Join-Path $SpScriptsDir "zombie_theater") "zombie_resume.gsc"),
     (Join-Path (Join-Path $SpScriptsDir "zombie_pentagon") "zombie_resume.gsc"),
     (Join-Path (Join-Path $SpScriptsDir "zombie_cosmodrome") "zombie_resume.gsc"),
@@ -35,7 +37,7 @@ $OldScriptTargets = @(
 Write-Host "[T5ZR] Plutonium root: $PlutoniumRoot"
 
 New-Item -ItemType Directory -Path $PluginDir -Force | Out-Null
-New-Item -ItemType Directory -Path $SpScriptsDir -Force | Out-Null
+New-Item -ItemType Directory -Path $ZombiesScriptsDir -Force | Out-Null
 
 foreach ($OldCopy in $OldScriptTargets) {
     if (Test-Path $OldCopy) {
