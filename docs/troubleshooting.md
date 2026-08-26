@@ -1,6 +1,6 @@
 # Troubleshooting
 
-## Le script ne s'exécute pas
+## Le script ne se charge pas
 
 Chemin attendu sur la build T5 r5346 testée :
 
@@ -8,94 +8,103 @@ Chemin attendu sur la build T5 r5346 testée :
 %localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Ne laisse pas une seconde copie directement sous `scripts\sp`, car ce dossier peut être chargé sur le frontend.
+Évite toute seconde copie directement sous `scripts\sp` : ce dossier peut aussi être chargé sur le frontend.
 
 ## Crash `ddl/stats.ddl` au démarrage
 
-Sur la configuration r5346 testée, `t5-gsc-utils.dll` provoquait ce crash avant le chargement de Kino.
+La version actuelle ne nécessite aucune DLL externe.
 
-La version actuelle n'en a pas besoin. Garde la DLL désactivée :
+Sur la configuration r5346 utilisée pendant le développement, `t5-gsc-utils.dll` provoquait ce crash avant le chargement de Kino. Si tu l'avais installée pour une ancienne version, garde-la désactivée.
 
-```text
-%localappdata%\Plutonium\plugins\t5-gsc-utils.dll.disabled
-```
+## La save disparaît après fermeture complète
 
-## La sauvegarde disparaît après avoir fermé le jeu
-
-Vérifie que `install.ps1` a été exécuté avec Plutonium complètement fermé et que les lignes `seta zr_sv_*` sont présentes dans :
+Exécute `install.ps1` avec Plutonium fermé. Les clés `zr_sv_*` doivent être pré-enregistrées avec `seta` dans :
 
 ```text
 %localappdata%\Plutonium\storage\t5\players\config.cfg
 ```
 
-Quitte normalement BO1/Plutonium pour le test de persistance.
+Le premier lancement de l'installateur crée aussi `config.cfg.t5zr.bak`.
 
-## Une save v3 ne se charge plus
+## Une ancienne save ne se charge plus
 
-C'est volontaire en `0.4.x`.
+`0.5.x` exige le format v5. Une save v4 n'est pas convertie automatiquement.
 
-Le format v4 ajoute les perks. Termine au moins une manche avec `0.4.0-rc1` pour créer un nouveau snapshot v4, puis vérifie :
+Termine une manche avec la nouvelle version, puis :
 
 ```text
 set zr_status 1
 ```
 
-La console doit indiquer `format=4`.
+La console doit indiquer `format=5`.
 
-## Un mate reçoit les armes/stats d'un autre
+## Un mate reçoit le snapshot d'un autre joueur
 
-Cela ne doit plus arriver en format v3+ : les joueurs sont appariés strictement avec `GetGuid()` et aucun fallback par nom n'est utilisé.
+Cela ne doit pas arriver : le runtime utilise un appariement strict `GetGuid()` et aucun fallback par nom.
 
-Si le problème réapparaît, capture les lignes `[T5ZR] Restored player ... from save slot ...` et le nombre de joueurs sauvegardés. Ne publie pas les GUID complets dans une issue publique.
+Si le problème réapparaît, fournis les lignes `[T5ZR] Restored player ... from save slot ...`, mais masque les GUID avant de publier un log.
 
-## Les armes/points reviennent mais pas les perks
+## Les perks ne reviennent pas
 
-En `0.4.0-rc1`, cherche d'abord une erreur de compilation ou runtime autour de :
-
-```text
-maps/_zombiemode_perks
-give_perk
-unknown function
-```
-
-Le runtime utilise le même appel cross-script que les scripts Zombies stock :
+Le runtime utilise le chemin stock :
 
 ```text
 self maps\_zombiemode_perks::give_perk(perk, false)
 ```
 
-Si la map charge mais un perk précis n'a pas d'effet, indique le perk, la map et si son icône HUD apparaît.
+Si un perk précis pose problème, indique la map, le perk, si son icône apparaît et si son effet gameplay fonctionne.
 
-## Jugger-Nog a l'icône mais pas la bonne vie
+## Le compteur de kills/stats est faux
 
-C'est précisément pour éviter ce cas que le mod ne se limite pas à `SetPerk`. Le stock `give_perk` applique `SetMaxHealth` pour Jugger-Nog.
+Le format v5 sauvegarde/restaure : kills, kill tracker, headshots, downs, revives, zombie gibs et compteur de perks consommés.
 
-Si l'effet est faux, capture le log de reprise et indique si la partie est en mutateur particulier.
+Si une valeur diverge, note la valeur juste avant l'autosave et juste après la reprise. Les statistiques de carrière/leaderboard ne sont pas réécrites par T5ZR ; il restaure uniquement l'état de la session reprise.
 
-## Mule Kick / troisième arme
+## Le courant Kino ne revient pas
 
-Les perks sont restaurés avant les armes. Une troisième primaire n'est reconstruite qu'après la restauration de `specialty_additionalprimaryweapon`.
+Vérifie d'abord :
 
-Si la troisième arme manque :
+```text
+set zr_status 1
+```
 
-1. confirme que Mule Kick était réellement actif au moment de l'autosave ;
-2. confirme que la save est format v4 ;
-3. envoie le log autour de `Restored ... perk(s)` et `Restored player ...`.
+Le save doit être v5 et `world=kino_v1`.
 
-## Quick Revive solo
+La reprise remet le flag stock `power_on` et laisse le thread Kino `wait_for_power()` appliquer les effets. Si le flag est restauré mais que les machines/lumières restent incorrectes, envoie les lignes `[T5ZR] Kino world restored...` et les erreurs qui suivent.
 
-Le perk actif est restauré via le chemin stock. En revanche, le format v4 ne sauvegarde pas encore l'historique complet du nombre d'achats/utilisations de Quick Revive au cours de la session précédente.
+## Une porte Kino est visuellement fermée/ou les zombies traversent mal
 
-## Power, portes, Box ou Pack-a-Punch ne reviennent pas
+Le v5 ouvre les entités `zombie_door` / `zombie_debris` correspondant aux flags de route de `theater_zone_init()` puis réactive les mêmes flags de zone.
 
-Normal pour le format v4. Ce sont des états de map, pas des champs joueur. Ils seront ajoutés avec des adaptateurs spécifiques par map afin de respecter les effets secondaires des scripts stock.
+Signale précisément quelle porte est concernée (côté spawn/VIP, alley, dressing, stage, etc.). Les coordonnées ou un screenshot sont plus utiles qu'un log complet.
+
+## Le téléporteur Kino n'est pas restauré comme prévu
+
+Seul l'état **entièrement lié** est sauvegardé. Un lien commencé mais pas terminé est volontairement remis à zéro. Le cooldown après utilisation n'est pas sauvegardé non plus.
+
+## La Mystery Box a changé de place
+
+C'est encore une limitation connue. Le v5 ne persiste pas la position/historique de la Box, car `level.chest_index` est couplé à la configuration des entités de coffre. Une restauration partielle serait plus fragile qu'un reset normal.
 
 ## Le numéro de manche est mauvais
 
-Capture :
+Cherche :
 
 ```text
-[T5ZR] Prepared v4 resume at round ...
+[T5ZR] Prepared v5 resume at round ...
 ```
 
-Le mod reconstruit une frontière de manche stable ; il ne tente pas de restaurer une manche en cours avec ses zombies vivants.
+T5ZR reconstruit une frontière de manche stable. Il ne tente pas de sauvegarder les zombies vivants ni l'état exact d'une manche en cours.
+
+## Signaler un bug public
+
+Inclure :
+
+- build Plutonium T5 ;
+- map ;
+- nombre de joueurs ;
+- round sauvegardé ;
+- résultat attendu / obtenu ;
+- lignes `[T5ZR]` utiles.
+
+Retirer les GUID, IP, tokens, chemins personnels et autres informations privées avant publication.
