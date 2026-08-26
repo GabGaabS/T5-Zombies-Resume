@@ -2,11 +2,12 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.5.0-beta.1 / save format v5
+// v0.5.0-beta.2 / save format v6
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
-// - kills, headshots, downs, revives and related round stats
+// - scoreboard network fields + round stats (kills/headshots/downs/revives)
+// - dog-round scheduler state so resumed special rounds are not skipped
 // - Kino adapter: power, permanent doors/debris and fully-linked teleporter
 // - each saved slot/player is restored only once per resumed session
 //
@@ -155,15 +156,24 @@ zr_clear_world_save()
     zr_store("zr_sv_kino_teleporter_linked", "0");
 }
 
+zr_clear_round_scheduler_save()
+{
+    zr_store("zr_sv_dog_rounds_enabled", "0");
+    zr_store("zr_sv_dog_round_active", "0");
+    zr_store("zr_sv_dog_round_count", "0");
+    zr_store("zr_sv_next_dog_round", "0");
+}
+
 zr_clear_save()
 {
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "5");
+    zr_store("zr_sv_format", "6");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", "");
     zr_store("zr_sv_round", "0");
     zr_store("zr_sv_reason", "cleared");
     zr_store("zr_sv_player_count", "0");
+    zr_clear_round_scheduler_save();
     zr_clear_world_save();
 
     for (i = 0; i < 4; i++)
@@ -223,24 +233,30 @@ zr_save_player_perks(slot, player)
 
 zr_save_player_stats(slot, player)
 {
-    kills = 0;
-    downs = 0;
-    revives = 0;
-    headshots = 0;
+    stats_kills = 0;
+    stats_downs = 0;
+    stats_revives = 0;
+    stats_headshots = 0;
     zombie_gibs = 0;
     perks_stat = 0;
 
     if (IsDefined(player.stats))
     {
-        kills = zr_int_or(player.stats["kills"], 0);
-        downs = zr_int_or(player.stats["downs"], 0);
-        revives = zr_int_or(player.stats["revives"], 0);
-        headshots = zr_int_or(player.stats["headshots"], 0);
+        stats_kills = zr_int_or(player.stats["kills"], 0);
+        stats_downs = zr_int_or(player.stats["downs"], 0);
+        stats_revives = zr_int_or(player.stats["revives"], 0);
+        stats_headshots = zr_int_or(player.stats["headshots"], 0);
         zombie_gibs = zr_int_or(player.stats["zombie_gibs"], 0);
         perks_stat = zr_int_or(player.stats["perks"], 0);
     }
 
-    kill_tracker = zr_int_or(player.kill_tracker, kills);
+    // BO1's coop scoreboard reads the networked player fields, while scoring
+    // and leaderboard bookkeeping also keep stats[] / kill_tracker mirrors.
+    kill_tracker = zr_int_or(player.kill_tracker, stats_kills);
+    kills = zr_int_or(player.kills, kill_tracker);
+    headshots = zr_int_or(player.headshots, stats_headshots);
+    downs = zr_int_or(player.downs, stats_downs);
+    revives = zr_int_or(player.revives, stats_revives);
 
     zr_store(zr_player_key(slot, "kills"), "" + kills);
     zr_store(zr_player_key(slot, "kill_tracker"), "" + kill_tracker);
@@ -326,6 +342,21 @@ zr_save_world()
     }
 }
 
+zr_save_round_scheduler()
+{
+    zr_clear_round_scheduler_save();
+
+    if (!IsDefined(level.dog_rounds_enabled) || !level.dog_rounds_enabled)
+    {
+        return;
+    }
+
+    zr_store("zr_sv_dog_rounds_enabled", "1");
+    zr_store("zr_sv_dog_round_count", "" + zr_int_or(level.dog_round_count, 1));
+    zr_store("zr_sv_next_dog_round", "" + zr_int_or(level.next_dog_round, 0));
+    zr_store("zr_sv_dog_round_active", zr_bool_string(zr_flag_is_set("dog_round")));
+}
+
 zr_save_game(reason)
 {
     if (!IsDefined(level.round_number))
@@ -344,13 +375,14 @@ zr_save_game(reason)
     }
 
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "5");
+    zr_store("zr_sv_format", "6");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", zr_current_map());
     zr_store("zr_sv_round", "" + level.round_number);
     zr_store("zr_sv_reason", reason);
     zr_store("zr_sv_player_count", "" + player_count);
 
+    zr_save_round_scheduler();
     zr_save_world();
 
     for (i = 0; i < 4; i++)
@@ -411,6 +443,7 @@ zr_print_status()
     println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + level.round_number);
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
     println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume"));
+    println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
 
     zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
 }
@@ -520,22 +553,36 @@ zr_restore_player_stats(slot)
         self.stats = [];
     }
 
-    kills = GetDvarInt(zr_player_key(slot, "kills"));
+    saved_kills = GetDvarInt(zr_player_key(slot, "kills"));
+    saved_kill_tracker = GetDvarInt(zr_player_key(slot, "kill_tracker"));
+    saved_headshots = GetDvarInt(zr_player_key(slot, "headshots"));
+    saved_downs = GetDvarInt(zr_player_key(slot, "downs"));
+    saved_revives = GetDvarInt(zr_player_key(slot, "revives"));
 
-    self.stats["kills"] = kills;
+    // Restore the fields used by the in-game coop scoreboard.
+    self.kills = saved_kills;
+    self.headshots = saved_headshots;
+    self.downs = saved_downs;
+    self.revives = saved_revives;
+
+    // Restore the mirrors used by Zombies scoring / match stat bookkeeping.
+    self.kill_tracker = saved_kill_tracker;
+    if (self.kill_tracker < 0)
+    {
+        self.kill_tracker = 0;
+    }
+
+    self.stats["kills"] = self.kill_tracker;
     self.stats["score"] = GetDvarInt(zr_player_key(slot, "score_total"));
-    self.stats["downs"] = GetDvarInt(zr_player_key(slot, "downs"));
-    self.stats["revives"] = GetDvarInt(zr_player_key(slot, "revives"));
+    self.stats["downs"] = saved_downs;
+    self.stats["revives"] = saved_revives;
     self.stats["perks"] = GetDvarInt(zr_player_key(slot, "perks_stat"));
-    self.stats["headshots"] = GetDvarInt(zr_player_key(slot, "headshots"));
+    self.stats["headshots"] = saved_headshots;
     self.stats["zombie_gibs"] = GetDvarInt(zr_player_key(slot, "zombie_gibs"));
 
-    self.kill_tracker = GetDvarInt(zr_player_key(slot, "kill_tracker"));
-
-    if (self.kill_tracker < kills)
-    {
-        self.kill_tracker = kills;
-    }
+    // Stock callback/laststand code mirrors downs into this dvar.
+    downs_dvar = "player" + self GetEntityNumber() + "downs";
+    SetDvar(downs_dvar, "" + self.downs);
 }
 
 zr_restore_player_slot(slot)
@@ -590,7 +637,7 @@ zr_restore_player_slot(slot)
     self zr_restore_player_stats(slot);
 
     self iPrintLnBold("^2T5ZR:^7 partie restauree - manche " + level.round_number);
-    println("[T5ZR] Restored player " + self.name + " from save slot " + slot + ": kills=" + self.stats["kills"] + ", perks=" + self.num_perks + ".");
+    println("[T5ZR] Restored player " + self.name + " from save slot " + slot + ": kills=" + self.kills + ", headshots=" + self.headshots + ", downs=" + self.downs + ", revives=" + self.revives + ", perks=" + self.num_perks + ".");
 }
 
 zr_entity_uses_flag(entity, flag_name)
@@ -790,6 +837,59 @@ zr_restore_world()
     }
 }
 
+zr_restore_round_scheduler()
+{
+    if (GetDvarInt("zr_sv_dog_rounds_enabled") != 1)
+    {
+        return;
+    }
+
+    // Wait for the stock dog tracker to initialize its fields. On Kino this
+    // happens before normal round play begins.
+    tries = 0;
+    while ((!IsDefined(level.dog_rounds_enabled) || !level.dog_rounds_enabled || !IsDefined(level.next_dog_round)) && tries < 300)
+    {
+        wait 0.01;
+        tries++;
+    }
+
+    if (!IsDefined(level.dog_rounds_enabled) || !level.dog_rounds_enabled)
+    {
+        println("[T5ZR] Dog scheduler restore skipped: stock dog rounds are not ready.");
+        return;
+    }
+
+    saved_count = GetDvarInt("zr_sv_dog_round_count");
+    if (saved_count < 1)
+    {
+        saved_count = 1;
+    }
+
+    saved_next = GetDvarInt("zr_sv_next_dog_round");
+    saved_active = GetDvarInt("zr_sv_dog_round_active") == 1;
+
+    level.dog_round_count = saved_count;
+    if (saved_next > 0)
+    {
+        level.next_dog_round = saved_next;
+    }
+
+    if (saved_active)
+    {
+        // The autosave is taken after between_round_over, so an active flag
+        // means the saved round itself is the dog round. Rebuild the stock
+        // special-round state before round_think starts spawning enemies.
+        if (!zr_flag_is_set("dog_round"))
+        {
+            maps\_zombiemode_ai_dogs::dog_round_start();
+        }
+
+        level.round_spawn_func = maps\_zombiemode_ai_dogs::dog_round_spawning;
+    }
+
+    println("[T5ZR] Dog scheduler restored: active=" + GetDvar("zr_sv_dog_round_active") + ", count=" + level.dog_round_count + ", next=" + level.next_dog_round + ".");
+}
+
 zr_restore_on_spawn()
 {
     self endon("disconnect");
@@ -853,9 +953,9 @@ zr_prepare_resume()
         return;
     }
 
-    if (GetDvarInt("zr_sv_format") != 5)
+    if (GetDvarInt("zr_sv_format") != 6)
     {
-        println("[T5ZR] Resume aborted: save format " + GetDvar("zr_sv_format") + " is not v5. Create a new autosave with v0.5.x.");
+        println("[T5ZR] Resume aborted: save format " + GetDvar("zr_sv_format") + " is not v6. Create a new autosave with v0.5.0-beta.2 or newer.");
         SetDvar("zr_resume", "0");
         return;
     }
@@ -885,9 +985,14 @@ zr_prepare_resume()
     }
 
     level.round_number = saved_round;
+
+    // Restore special-round scheduling before normal gameplay has a chance to
+    // consume the resumed round.
+    zr_restore_round_scheduler();
+
     SetDvar("zr_resume", "0");
 
-    println("[T5ZR] Prepared v5 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
+    println("[T5ZR] Prepared v6 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
 
     // World restoration is separate from player spawn restoration.
     level thread zr_restore_world();
@@ -898,7 +1003,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.5.0-beta.1";
+    level.zr_mod_version = "0.5.0-beta.2";
     level.zr_pending_resume = false;
     level.zr_suppress_autosave = false;
     level.zr_slot_claimed = [];
@@ -922,5 +1027,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v5, Kino world adapter)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v6, scoreboard + dog scheduler + Kino world)");
 }
