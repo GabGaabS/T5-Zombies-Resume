@@ -225,7 +225,7 @@ if ($InstallMenu) {
     }
 
     $patchedMenu = Build-T5ZRMenuOverride -BaseMenu $baseMenu
-    Set-Content -Path $MenuTarget -Value $patchedMenu -Encoding UTF8
+    Set-Content -Path $MenuTarget -Value $patchedMenu -Encoding ASCII
     Write-Host "[T5ZR] Menu Resume genere et installe -> $MenuTarget"
 }
 else {
