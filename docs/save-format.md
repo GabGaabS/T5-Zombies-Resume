@@ -1,16 +1,10 @@
-# Save format v3
+# Save format v4
 
-`0.3.0-rc1` stores the resume snapshot in archived T5 dvars rather than JSON.
+T5 Zombies Resume stores one host-side snapshot in archived `zr_sv_*` dvars.
 
-The installer pre-registers every `zr_sv_*` key with `seta` in:
+The snapshot is written only at a stable round boundary (or manually) and is considered valid only after every field has been updated.
 
-```text
-%localappdata%\Plutonium\storage\t5\players\config.cfg
-```
-
-The runtime updates those values with native GSC calls. On a normal BO1/Plutonium exit, the archived values remain available for the next launch.
-
-## Metadata
+## Session fields
 
 ```text
 zr_sv_valid
@@ -22,63 +16,122 @@ zr_sv_reason
 zr_sv_player_count
 ```
 
-Expected format value:
+`zr_sv_format` must be `4` for `0.4.x` resume.
 
-```text
-zr_sv_format = 3
-```
+`zr_sv_round` is the next round to play after loading.
 
-`zr_sv_round` is the next round to play after resume.
+## Player identity
 
-The runtime writes `zr_sv_valid = 0` before updating a snapshot and only sets it back to `1` after every field has been written.
-
-## Per-player slots
-
-Up to four players are stored as `p0` through `p3`.
-
-For each player:
+Each of up to four slots stores:
 
 ```text
 zr_sv_p0_guid
 zr_sv_p0_name
+```
+
+`guid` is authoritative. `name` is display/debug metadata only.
+
+A player is restored only when the live `GetGuid()` value exactly matches a saved slot. There is no name fallback.
+
+Each slot can be claimed only once in a resumed session and each live player entity can be restored at most once.
+
+## Score and weapons
+
+Per player:
+
+```text
 zr_sv_p0_score
 zr_sv_p0_score_total
 zr_sv_p0_current_weapon
 zr_sv_p0_weapon_count
-```
 
-`guid` is the authoritative identity key. `name` is metadata only and is never used as a restore fallback in v3.
-
-For each of up to three primary weapons:
-
-```text
 zr_sv_p0_w0_name
 zr_sv_p0_w0_clip
 zr_sv_p0_w0_stock
+...
+zr_sv_p0_w2_name
+zr_sv_p0_w2_clip
+zr_sv_p0_w2_stock
 ```
 
-The same layout exists for `w1` and `w2`, and for player slots `p1` through `p3`.
+Up to three primary weapons are stored.
 
-## Restore matching rules
+## Perks
 
-A player can be restored only when all of these are true:
+Per player:
 
-1. `zr_sv_valid == 1`;
-2. `zr_sv_format == 3`;
-3. saved map equals current map;
-4. saved round is valid;
-5. current `player GetGuid()` exactly equals one saved slot GUID;
-6. that slot has not already been claimed in the current resumed session;
-7. that player entity has not already attempted restore.
+```text
+zr_sv_p0_perk_count
+zr_sv_p0_perk0
+...
+zr_sv_p0_perk15
+```
 
-There is intentionally **no player-name fallback**.
+The runtime recognizes these stock BO1 identifiers:
 
-If no GUID matches, the runtime leaves that player's stock Zombies state untouched. This is safer than applying another participant's points/weapons.
+```text
+specialty_armorvest
+specialty_quickrevive
+specialty_fastreload
+specialty_rof
+specialty_longersprint
+specialty_flakjacket
+specialty_deadshot
+specialty_additionalprimaryweapon
+```
 
-## Compatibility
+and the corresponding `_upgrade` variants defined in the stock perk script.
 
-Format v2 saves are rejected by v3. Create a new autosave with `0.3.0-rc1` before testing resume.
+Perks are restored before weapons. This matters for `specialty_additionalprimaryweapon` (Mule Kick) when a saved player owns three primaries.
 
-## Not represented yet
+Restoration uses the stock Zombies call:
 
-Format v3 does not store perks, doors, power, box state, traps, teleporters, Pack-a-Punch world state, Easter Egg progress, active zombies, exact player positions, RNG state, or a mid-round simulation snapshot.
+```text
+self maps\_zombiemode_perks::give_perk(perk, false)
+```
+
+rather than only calling `SetPerk`. The stock path is responsible for the perk HUD/lifecycle and perk-specific effects such as Jugger-Nog max health and Deadshot's client flag.
+
+## Persistence
+
+`install.ps1` pre-registers every save key with `seta` in:
+
+```text
+%localappdata%\Plutonium\storage\t5\players\config.cfg
+```
+
+so the custom dvars have the archive flag and survive a normal full BO1/Plutonium exit.
+
+The installer creates an initial backup at:
+
+```text
+config.cfg.t5zr.bak
+```
+
+## Validation rules
+
+Resume is rejected when:
+
+- `zr_sv_valid != 1`;
+- format is not v4;
+- saved map differs from the loaded map;
+- saved round is invalid;
+- a player has no matching GUID slot.
+
+A missing player does not block the whole session: unmatched players keep their normal stock spawn state.
+
+## Not part of format v4
+
+The following are map/world state and are intentionally not yet reconstructed:
+
+- power/courant;
+- opened doors/debris;
+- Mystery Box position/history;
+- Pack-a-Punch/téléporter state;
+- traps;
+- Easter Egg / sidequest flags;
+- live zombies and mid-round AI;
+- RNG state;
+- special history such as prior Quick Revive solo purchases or permanent-perk quest flags.
+
+Those systems need explicit map adapters instead of being treated as generic player fields.
