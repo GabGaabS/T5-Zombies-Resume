@@ -7,7 +7,7 @@
 // on at least one confirmed setup (ddl/stats.ddl initialization failure).
 // This version therefore uses only native BO1/T5 GSC builtins.
 //
-// v0.2.0-native-test saves at a stable round boundary:
+// v0.2.1-native-test saves at a stable round boundary:
 // - next round number
 // - player name
 // - points / total score
@@ -33,6 +33,25 @@ zr_int_or(value, fallback)
     return Int(value);
 }
 
+zr_show_message(message)
+{
+    players = GetPlayers();
+
+    for (i = 0; i < players.size; i++)
+    {
+        players[i] iPrintLnBold(message);
+    }
+}
+
+// Mirror every persisted value into a normal dvar first. This makes custom
+// zr_sv_* keys immediately readable in the current session, then asks BO1 to
+// persist the same value through its native SavedDvar path.
+zr_store(key, value)
+{
+    SetDvar(key, value);
+    SetSavedDvar(key, value);
+}
+
 zr_player_key(slot, suffix)
 {
     return "zr_sv_p" + slot + "_" + suffix;
@@ -45,18 +64,18 @@ zr_weapon_key(slot, weapon_slot, suffix)
 
 zr_clear_saved_weapon(slot, weapon_slot)
 {
-    SetSavedDvar(zr_weapon_key(slot, weapon_slot, "name"), "");
-    SetSavedDvar(zr_weapon_key(slot, weapon_slot, "clip"), "0");
-    SetSavedDvar(zr_weapon_key(slot, weapon_slot, "stock"), "0");
+    zr_store(zr_weapon_key(slot, weapon_slot, "name"), "");
+    zr_store(zr_weapon_key(slot, weapon_slot, "clip"), "0");
+    zr_store(zr_weapon_key(slot, weapon_slot, "stock"), "0");
 }
 
 zr_clear_saved_player(slot)
 {
-    SetSavedDvar(zr_player_key(slot, "name"), "");
-    SetSavedDvar(zr_player_key(slot, "score"), "0");
-    SetSavedDvar(zr_player_key(slot, "score_total"), "0");
-    SetSavedDvar(zr_player_key(slot, "current_weapon"), "none");
-    SetSavedDvar(zr_player_key(slot, "weapon_count"), "0");
+    zr_store(zr_player_key(slot, "name"), "");
+    zr_store(zr_player_key(slot, "score"), "0");
+    zr_store(zr_player_key(slot, "score_total"), "0");
+    zr_store(zr_player_key(slot, "current_weapon"), "none");
+    zr_store(zr_player_key(slot, "weapon_count"), "0");
 
     for (w = 0; w < 3; w++)
     {
@@ -76,20 +95,20 @@ zr_save_player(slot, player)
         weapon_count = 3;
     }
 
-    SetSavedDvar(zr_player_key(slot, "name"), player.name);
-    SetSavedDvar(zr_player_key(slot, "score"), "" + score);
-    SetSavedDvar(zr_player_key(slot, "score_total"), "" + total);
-    SetSavedDvar(zr_player_key(slot, "current_weapon"), player GetCurrentWeapon());
-    SetSavedDvar(zr_player_key(slot, "weapon_count"), "" + weapon_count);
+    zr_store(zr_player_key(slot, "name"), player.name);
+    zr_store(zr_player_key(slot, "score"), "" + score);
+    zr_store(zr_player_key(slot, "score_total"), "" + total);
+    zr_store(zr_player_key(slot, "current_weapon"), player GetCurrentWeapon());
+    zr_store(zr_player_key(slot, "weapon_count"), "" + weapon_count);
 
     for (w = 0; w < 3; w++)
     {
         if (w < weapon_count)
         {
             weapon = weapons[w];
-            SetSavedDvar(zr_weapon_key(slot, w, "name"), weapon);
-            SetSavedDvar(zr_weapon_key(slot, w, "clip"), "" + player GetWeaponAmmoClip(weapon));
-            SetSavedDvar(zr_weapon_key(slot, w, "stock"), "" + player GetWeaponAmmoStock(weapon));
+            zr_store(zr_weapon_key(slot, w, "name"), weapon);
+            zr_store(zr_weapon_key(slot, w, "clip"), "" + player GetWeaponAmmoClip(weapon));
+            zr_store(zr_weapon_key(slot, w, "stock"), "" + player GetWeaponAmmoStock(weapon));
         }
         else
         {
@@ -103,6 +122,7 @@ zr_save_game(reason)
     if (!IsDefined(level.round_number))
     {
         println("[T5ZR] Save skipped: round number is not initialized yet.");
+        zr_show_message("^1T5ZR:^7 sauvegarde impossible, manche non initialisee");
         return;
     }
 
@@ -114,12 +134,12 @@ zr_save_game(reason)
         player_count = 4;
     }
 
-    SetSavedDvar("zr_sv_valid", "0");
-    SetSavedDvar("zr_sv_format", "2");
-    SetSavedDvar("zr_sv_map", zr_current_map());
-    SetSavedDvar("zr_sv_round", "" + level.round_number);
-    SetSavedDvar("zr_sv_reason", reason);
-    SetSavedDvar("zr_sv_player_count", "" + player_count);
+    zr_store("zr_sv_valid", "0");
+    zr_store("zr_sv_format", "2");
+    zr_store("zr_sv_map", zr_current_map());
+    zr_store("zr_sv_round", "" + level.round_number);
+    zr_store("zr_sv_reason", reason);
+    zr_store("zr_sv_player_count", "" + player_count);
 
     for (i = 0; i < 4; i++)
     {
@@ -134,18 +154,49 @@ zr_save_game(reason)
     }
 
     // Mark valid only after every field has been written.
-    SetSavedDvar("zr_sv_valid", "1");
+    zr_store("zr_sv_valid", "1");
 
     println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + ")");
+    zr_show_message("^2T5ZR:^7 sauvegarde OK - prochaine manche " + level.round_number);
 }
 
-zr_watch_round_end()
+// Do not depend on a cross-script notify for autosave. Once stock Zombies has
+// initialized level.round_number, directly watch it for increments. Stock BO1
+// increments this value when a round is completed, so the new value is the
+// next round to play.
+zr_watch_round_number()
 {
+    while (!IsDefined(level.round_number))
+    {
+        wait 0.05;
+    }
+
+    last_round = level.round_number;
+    println("[T5ZR] Round watcher armed at round " + last_round);
+
     for (;;)
     {
-        level waittill("between_round_over");
-        wait 0.05;
-        zr_save_game("autosave");
+        wait 0.10;
+
+        if (!IsDefined(level.round_number))
+        {
+            continue;
+        }
+
+        current_round = level.round_number;
+
+        if (current_round != last_round)
+        {
+            advanced = current_round > last_round;
+            last_round = current_round;
+
+            if (advanced && !level.zr_suppress_autosave)
+            {
+                // Let stock finish the between-round bookkeeping first.
+                wait 0.25;
+                zr_save_game("autosave");
+            }
+        }
     }
 }
 
@@ -162,9 +213,10 @@ zr_watch_controls()
         if (GetDvarInt("zr_status") == 1)
         {
             SetDvar("zr_status", "0");
-            println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map());
+            println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + level.round_number);
             println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
             println("[T5ZR] resume_request=" + GetDvar("zr_resume"));
+            zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
         }
 
         wait 0.10;
@@ -229,7 +281,7 @@ zr_restore_player_slot(slot)
         self SwitchToWeapon(current);
     }
 
-    self iPrintLnBold("^2T5 Zombies Resume:^7 partie restauree (round " + level.round_number + ")");
+    self iPrintLnBold("^2T5ZR:^7 partie restauree - manche " + level.round_number);
     println("[T5ZR] Restored " + self.name + " from slot " + slot + " score=" + self.score);
 }
 
@@ -240,6 +292,12 @@ zr_restore_on_spawn()
     for (;;)
     {
         self waittill("spawned_player");
+
+        if (!IsDefined(self.zr_announced))
+        {
+            self.zr_announced = true;
+            self iPrintLnBold("^2T5ZR " + level.zr_mod_version + "^7 actif");
+        }
 
         if (!IsDefined(level.zr_pending_resume) || !level.zr_pending_resume)
         {
@@ -307,8 +365,8 @@ zr_prepare_resume()
     }
 
     level.zr_pending_resume = true;
+    level.zr_suppress_autosave = true;
 
-    // Critical timing point: validate on Kino first.
     while (!IsDefined(level.round_number))
     {
         wait 0.01;
@@ -317,15 +375,20 @@ zr_prepare_resume()
     level.round_number = saved_round;
     SetDvar("zr_resume", "0");
     println("[T5ZR] Prepared native resume at round " + level.round_number);
+
+    // Let the round watcher observe the restored value without overwriting the
+    // existing save with stock starting loadouts.
+    wait 0.50;
+    level.zr_suppress_autosave = false;
 }
 
 main()
 {
-    level.zr_mod_version = "0.2.0-native-test";
+    level.zr_mod_version = "0.2.1-native-test";
     level.zr_pending_resume = false;
+    level.zr_suppress_autosave = false;
 
-    // Console control dvars. They are intentionally simple native dvars so
-    // no command-registration plugin is required.
+    // Console control dvars. Use these in the actual in-game console, not chat.
     if (GetDvar("zr_save_now") == "")
     {
         SetDvar("zr_save_now", "0");
@@ -341,7 +404,7 @@ main()
         SetDvar("zr_resume", "0");
     }
 
-    level thread zr_watch_round_end();
+    level thread zr_watch_round_number();
     level thread zr_watch_controls();
     level thread zr_watch_players();
     level thread zr_prepare_resume();
