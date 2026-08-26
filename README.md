@@ -2,55 +2,55 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.5.0--beta.1-blue)
+![Version](https://img.shields.io/badge/version-0.5.0--beta.2-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> The goal is simple: stop a private Zombies session at a round boundary, close the game, and continue later with the same host and players.
+T5ZR lets the host stop a private Zombies session at a round boundary, close the game, and continue later with the same players and loadouts.
 
 ## Current status
 
-`0.5.0-beta.1` is the first version prepared for broader testing.
+`0.5.0-beta.2` is the version prepared for the first public beta.
 
-Already validated on Plutonium T5 r5346 during development:
+Validated during real Plutonium T5 r5346 testing:
 
-- GSC loads from `scripts\sp\zom`;
-- no external DLL is required;
-- end-of-round autosave;
+- no external DLL required;
+- automatic round-boundary saves;
 - save data survives a full BO1/Plutonium restart;
-- round restoration;
-- points, primary weapons and ammo restoration;
-- perks, including Jugger-Nog gameplay effects;
-- strict per-player restore through `GetGuid()`.
+- round, points, weapons and ammo restoration;
+- perks, including Jugger-Nog's actual gameplay effect;
+- strict per-player restore through `GetGuid()`;
+- Kino der Toten power and permanent opened routes.
 
-New in this beta and still requiring wider testing:
+Beta.2 fixes two issues found during the Kino beta.1 test:
 
-- kills, headshots, downs and revives;
-- Kino der Toten power state;
-- Kino permanent doors/debris;
-- fully-linked Kino teleporter state.
+- the coop scoreboard now restores the networked `kills`, `headshots`, `downs` and `revives` fields as well as the script stat mirrors;
+- the hellhound scheduler is saved/restored, including the next dog round, dog-round count and a dog round that was already queued at the saved boundary.
 
 ## What is saved
 
 For up to four players:
 
 - player GUID;
-- points and total score;
-- kills, headshots, downs, revives and gib/perk counters;
+- current points and total score;
+- scoreboard kills, headshots, downs and revives;
+- Zombies stat/kill-tracker mirrors;
 - up to three primary weapons;
 - clip and reserve ammo;
 - selected weapon;
 - active BO1 Zombies perks.
 
-On **Kino der Toten**, the v5 world adapter also stores:
+Session state also includes the hellhound round scheduler when the current map uses stock dog rounds.
 
-- power on/off;
+On **Kino der Toten**, the world adapter additionally stores:
+
+- power;
 - permanent door/debris route state;
 - stage curtain state;
 - whether the teleporter was fully linked.
 
-The save is taken at a round boundary. It is not a RAM snapshot.
+Saves are designed around a stable round boundary. T5ZR is not a RAM snapshot.
 
 ## Install
 
@@ -60,23 +60,21 @@ Close Plutonium completely, then run from the repository folder:
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The installer places the runtime at:
+The runtime is installed to:
 
 ```text
 %localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Persistent `zr_sv_*` dvars are registered in the T5 Zombies config so the save survives a full game restart. The installer creates `config.cfg.t5zr.bak` before modifying the config for the first time.
+Persistent `zr_sv_*` dvars are registered in the T5 Zombies `players/config.cfg`. The installer creates `config.cfg.t5zr.bak` before modifying it for the first time.
 
 ### Plutonium r5346
 
-This version does **not** use `t5-gsc-utils.dll`. During development, the distributed DLL caused a `ddl/stats.ddl` startup failure on the tested r5346 setup.
-
-If you installed it for an older T5ZR build, keep it disabled.
+T5ZR does **not** use `t5-gsc-utils.dll`. On the development setup that DLL caused an early `ddl/stats.ddl` startup failure, so users coming from the old prototype should keep it disabled.
 
 ## Use
 
-Autosave is automatic when the next round starts. You should see:
+Autosave is automatic when the game advances to the next round:
 
 ```text
 T5ZR: sauvegarde OK - prochaine manche X
@@ -88,7 +86,7 @@ Check the current save:
 set zr_status 1
 ```
 
-Resume the current map:
+Resume:
 
 ```text
 set zr_resume 1
@@ -107,50 +105,47 @@ Delete the save:
 set zr_clear_save 1
 ```
 
-A proper **Resume Game** menu entry is planned; console controls are still used in the beta.
+A proper **Resume Game** menu entry is planned; the beta still uses console controls.
 
 ## Save compatibility
 
-`0.5.x` uses **save format v5**. Older v4 saves are left untouched but are not resumed by the v5 runtime. Finish one round with the new version to create a v5 save.
+Beta.2 uses **save format v6**.
+
+A v5 save from beta.1 is not partially interpreted as v6. After installing beta.2, finish one round to create a fresh v6 snapshot before testing resume.
 
 ## Known limitations
 
-The following state is intentionally not restored yet:
+Not currently reconstructed:
 
 - Mystery Box location/history;
 - teleporter cooldown or an in-progress teleport;
 - active traps and temporary powerups;
-- living zombies or mid-round positions;
-- Easter Egg / quest progress;
+- living zombies / mid-round positions;
+- Easter Egg and sidequest progress;
 - RNG state;
-- full world state on maps other than Kino.
+- map-specific world state outside implemented adapters.
 
-Other maps can still use the player/round save layer, but their map-specific world state currently resets normally.
+Other BO1 Zombies maps can still use the player/round layer, but map-specific systems may reset unless an adapter exists.
 
 ## Reporting a bug
 
-Please include:
+Please include the Plutonium build, map, player count, saved round, expected/actual result and the relevant `[T5ZR]` console lines.
 
-- Plutonium T5 build number;
-- map;
-- number of players;
-- saved round;
-- what was expected vs. what was restored;
-- the relevant `[T5ZR]` console lines.
+For special-round bugs, `set zr_status 1` now prints the saved dog-round state too.
 
-Do not post account tokens, private identifiers or full logs containing information you do not want public.
+Do not publish full GUIDs, IPs, account tokens or personal filesystem paths.
 
-See [Troubleshooting](docs/troubleshooting.md) and [Save format](docs/save-format.md) for more detail.
+See [Troubleshooting](docs/troubleshooting.md), [Save format](docs/save-format.md) and [beta test checklist](docs/testing-v0.5.md).
 
 ## Scope and safety
 
-T5 Zombies Resume is intended for **private Plutonium T5 Zombies sessions**. It does not contain VAC bypasses, anti-cheat evasion, process injection, memory patching or modifications to vanilla Steam BO1.
+T5 Zombies Resume is intended for **private Plutonium T5 Zombies sessions**. It contains no VAC bypass, anti-cheat evasion, process injection, memory patching or modification of vanilla Steam BO1.
 
 ## Credits
 
-Built from the public BO1/T5 script references in [`plutoniummod/t5-scripts`](https://github.com/plutoniummod/t5-scripts) and tested manually on Plutonium T5.
+Built from the public BO1/T5 script references in [`plutoniummod/t5-scripts`](https://github.com/plutoniummod/t5-scripts) and validated through real in-game testing.
 
-The project is developed with substantial assistance from **ChatGPT / OpenAI Codex** for research, code generation and review. Runtime behavior is still validated through real in-game testing before being treated as working.
+The project is developed with substantial assistance from **ChatGPT / OpenAI Codex** for research, implementation and review. Features are still tested in-game before being treated as working.
 
 ## License
 
