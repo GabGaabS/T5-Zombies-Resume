@@ -76,7 +76,7 @@ $script:ArchivedAdded = 0
 function Ensure-ArchivedDvar {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$DefaultValue
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$DefaultValue
     )
 
     $escapedName = [Regex]::Escape($Name)
