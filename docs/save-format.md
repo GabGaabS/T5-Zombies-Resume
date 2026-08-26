@@ -1,30 +1,84 @@
-# Save format v1
+# Save format v3
 
-One JSON save is kept per map for the MVP.
+`0.3.0-rc1` stores the resume snapshot in archived T5 dvars rather than JSON.
 
-```json
-{
-  "format_version": 1,
-  "mod_version": "0.1.0",
-  "map": "zombie_theater",
-  "round": 8,
-  "reason": "autosave",
-  "player_count": 2,
-  "players": [
-    {
-      "guid": "12345678",
-      "name": "Player One",
-      "score": 6240,
-      "score_total": 15120,
-      "current_weapon": "ray_gun_zm",
-      "weapons": [
-        {"name": "ray_gun_zm", "clip": 18, "stock": 132}
-      ]
-    }
-  ]
-}
+The installer pre-registers every `zr_sv_*` key with `seta` in:
+
+```text
+%localappdata%\Plutonium\storage\t5\players\config.cfg
 ```
 
-`round` is the next round to start after loading. Players are matched by GUID first, with a unique-name fallback only for testing.
+The runtime updates those values with native GSC calls. On a normal BO1/Plutonium exit, the archived values remain available for the next launch.
 
-Loading is rejected if the format version differs, the map differs, the round is invalid, or player data is missing.
+## Metadata
+
+```text
+zr_sv_valid
+zr_sv_format
+zr_sv_mod_version
+zr_sv_map
+zr_sv_round
+zr_sv_reason
+zr_sv_player_count
+```
+
+Expected format value:
+
+```text
+zr_sv_format = 3
+```
+
+`zr_sv_round` is the next round to play after resume.
+
+The runtime writes `zr_sv_valid = 0` before updating a snapshot and only sets it back to `1` after every field has been written.
+
+## Per-player slots
+
+Up to four players are stored as `p0` through `p3`.
+
+For each player:
+
+```text
+zr_sv_p0_guid
+zr_sv_p0_name
+zr_sv_p0_score
+zr_sv_p0_score_total
+zr_sv_p0_current_weapon
+zr_sv_p0_weapon_count
+```
+
+`guid` is the authoritative identity key. `name` is metadata only and is never used as a restore fallback in v3.
+
+For each of up to three primary weapons:
+
+```text
+zr_sv_p0_w0_name
+zr_sv_p0_w0_clip
+zr_sv_p0_w0_stock
+```
+
+The same layout exists for `w1` and `w2`, and for player slots `p1` through `p3`.
+
+## Restore matching rules
+
+A player can be restored only when all of these are true:
+
+1. `zr_sv_valid == 1`;
+2. `zr_sv_format == 3`;
+3. saved map equals current map;
+4. saved round is valid;
+5. current `player GetGuid()` exactly equals one saved slot GUID;
+6. that slot has not already been claimed in the current resumed session;
+7. that player entity has not already attempted restore.
+
+There is intentionally **no player-name fallback**.
+
+If no GUID matches, the runtime leaves that player's stock Zombies state untouched. This is safer than applying another participant's points/weapons.
+
+## Compatibility
+
+Format v2 saves are rejected by v3. Create a new autosave with `0.3.0-rc1` before testing resume.
+
+## Not represented yet
+
+Format v3 does not store perks, doors, power, box state, traps, teleporters, Pack-a-Punch world state, Easter Egg progress, active zombies, exact player positions, RNG state, or a mid-round simulation snapshot.
