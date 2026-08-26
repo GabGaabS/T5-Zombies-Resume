@@ -20,8 +20,8 @@ $SpScriptsDir = Join-Path $T5Root "scripts\sp"
 $ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
 $ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
 
-$Version = "0.4.0-rc1"
-$SaveFormat = "4"
+$Version = "0.5.0-beta.1"
+$SaveFormat = "5"
 
 $OldScriptTargets = @(
     (Join-Path $SpScriptsDir "zombie_resume.gsc"),
@@ -55,7 +55,7 @@ Copy-Item -Path $SourceScript -Destination $ScriptTarget -Force
 Write-Host "[T5ZR] GSC installe -> $ScriptTarget"
 
 # Custom save dvars need the archive flag to survive a full BO1/Plutonium exit.
-# Pre-registering them with `seta` in the T5 SP/ZM config gives them that flag.
+# Registering them with `seta` in the T5 SP/ZM config gives them that flag.
 if (-not (Test-Path $ConfigPath)) {
     New-Item -ItemType File -Path $ConfigPath -Force | Out-Null
     Write-Host "[T5ZR] config.cfg cree -> $ConfigPath"
@@ -98,9 +98,28 @@ Ensure-ArchivedDvar "zr_sv_map" ""
 Ensure-ArchivedDvar "zr_sv_round" "0"
 Ensure-ArchivedDvar "zr_sv_reason" ""
 Ensure-ArchivedDvar "zr_sv_player_count" "0"
+Ensure-ArchivedDvar "zr_sv_world_adapter" "none"
 
-# Up to four co-op players, each identified by engine GUID, carrying up to
-# three primary weapons and up to sixteen known perk identifiers.
+# Kino world adapter (v1): stable round-boundary state only.
+$KinoWorldDefaults = @{
+    "zr_sv_kino_power" = "0"
+    "zr_sv_kino_magic_box_foyer1" = "0"
+    "zr_sv_kino_magic_box_crematorium1" = "0"
+    "zr_sv_kino_vip_to_dining" = "0"
+    "zr_sv_kino_magic_box_alleyway1" = "0"
+    "zr_sv_kino_dining_to_dressing" = "0"
+    "zr_sv_kino_magic_box_dressing1" = "0"
+    "zr_sv_kino_magic_box_west_balcony2" = "0"
+    "zr_sv_kino_magic_box_west_balcony1" = "0"
+    "zr_sv_kino_curtains_done" = "0"
+    "zr_sv_kino_teleporter_linked" = "0"
+}
+
+foreach ($Entry in $KinoWorldDefaults.GetEnumerator()) {
+    Ensure-ArchivedDvar $Entry.Key $Entry.Value
+}
+
+# Up to four co-op players, each identified by engine GUID.
 for ($p = 0; $p -lt 4; $p++) {
     Ensure-ArchivedDvar "zr_sv_p${p}_guid" ""
     Ensure-ArchivedDvar "zr_sv_p${p}_name" ""
@@ -109,6 +128,15 @@ for ($p = 0; $p -lt 4; $p++) {
     Ensure-ArchivedDvar "zr_sv_p${p}_current_weapon" "none"
     Ensure-ArchivedDvar "zr_sv_p${p}_weapon_count" "0"
     Ensure-ArchivedDvar "zr_sv_p${p}_perk_count" "0"
+
+    # Round scoreboard/stat state.
+    Ensure-ArchivedDvar "zr_sv_p${p}_kills" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_kill_tracker" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_headshots" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_downs" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_revives" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_zombie_gibs" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_perks_stat" "0"
 
     for ($w = 0; $w -lt 3; $w++) {
         Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_name" ""
@@ -150,8 +178,8 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] IMPORTANT : une ancienne save format v3 ne sera pas restauree par v4."
-Write-Host "[T5ZR] Lance une partie avec $Version et termine au moins une manche pour creer une save v4 avec perks."
+Write-Host "[T5ZR] Une ancienne save v4 reste intacte mais ne peut pas etre reprise par v5."
+Write-Host "[T5ZR] Termine au moins une manche avec cette version pour creer une save v5."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
