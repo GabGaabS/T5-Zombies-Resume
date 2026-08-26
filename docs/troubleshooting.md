@@ -1,141 +1,101 @@
 # Troubleshooting
 
-## Script does not execute
+## Le script ne s'exécute pas
 
-For Plutonium T5 r5346, the tested Zombies-only path is:
+Chemin attendu sur la build T5 r5346 testée :
 
 ```text
 %localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Do **not** keep a second copy directly under `scripts\sp`, because generic SP scripts can also be loaded by the frontend on this build.
+Ne laisse pas une seconde copie directement sous `scripts\sp`, car ce dossier peut être chargé sur le frontend.
 
-Expected log lines when a Zombies map starts:
+## Crash `ddl/stats.ddl` au démarrage
 
-```text
-Loading script scripts/sp/zom/zombie_resume.gsc...
-Script scripts/sp/zom/zombie_resume.gsc loaded successfully.
-```
+Sur la configuration r5346 testée, `t5-gsc-utils.dll` provoquait ce crash avant le chargement de Kino.
 
-## Game crashes at startup on `ddl/stats.ddl`
-
-Check whether this file exists and is active:
+La version actuelle n'en a pas besoin. Garde la DLL désactivée :
 
 ```text
-%localappdata%\Plutonium\plugins\t5-gsc-utils.dll
+%localappdata%\Plutonium\plugins\t5-gsc-utils.dll.disabled
 ```
 
-The current T5 Zombies Resume runtime does not need that DLL. On the r5346 test setup it was confirmed to trigger a startup failure before Kino loaded.
+## La sauvegarde disparaît après avoir fermé le jeu
 
-With Plutonium closed, rename it to:
-
-```text
-t5-gsc-utils.dll.disabled
-```
-
-## Save disappears after fully closing the game
-
-Run the latest `install.ps1` with Plutonium completely closed.
-
-The installer must add archived `seta zr_sv_*` entries to:
+Vérifie que `install.ps1` a été exécuté avec Plutonium complètement fermé et que les lignes `seta zr_sv_*` sont présentes dans :
 
 ```text
 %localappdata%\Plutonium\storage\t5\players\config.cfg
 ```
 
-It also creates this one-time backup:
+Quitte normalement BO1/Plutonium pour le test de persistance.
 
-```text
-config.cfg.t5zr.bak
-```
+## Une save v3 ne se charge plus
 
-After a new autosave, quit BO1/Plutonium normally and relaunch. In Kino run:
+C'est volontaire en `0.4.x`.
 
-```text
-set zr_status 1
-```
-
-The saved round should still be present.
-
-## `Ensure-ArchivedDvar` rejects an empty string
-
-Update to an installer containing:
-
-```powershell
-[AllowEmptyString()][string]$DefaultValue
-```
-
-This was fixed after the first persistence installer build.
-
-## Resume says save format is not v3
-
-`0.3.0-rc1` deliberately rejects v2 snapshots because they do not contain safe per-player GUID identity.
-
-Create a new save with v3 by playing until the next autosave message:
-
-```text
-T5ZR: sauvegarde OK - prochaine manche X
-```
-
-Then resume again.
-
-## Several players receive the same weapons/points
-
-That was the unsafe v2/name-matching behavior.
-
-Verify the loaded version is:
-
-```text
-T5ZR 0.3.0-rc1 actif
-```
-
-Format v3 stores `zr_sv_pN_guid` and only restores a player when native `GetGuid()` matches exactly. There is no name fallback. A saved slot can also be claimed only once.
-
-If the issue still reproduces on v3, capture the new Plutonium log. Do not paste account GUID values publicly unless needed for debugging.
-
-## A mate gets `aucune sauvegarde associee a ce joueur`
-
-This is a safe failure mode in v3. It means the joining player's current GUID did not match any unclaimed saved slot.
-
-Possible reasons:
-
-- this player was not in the original save;
-- the save was created with v2;
-- the player is using a different Plutonium account;
-- the slot was already claimed earlier in the resumed session.
-
-The runtime intentionally leaves that player with the normal Zombies loadout rather than applying another player's snapshot.
-
-## Player is restored again after death/respawn
-
-`0.3.0-rc1` has a one-shot restore guard. If this happens, verify that the installed GSC is actually the latest version and that there are no duplicate `zombie_resume.gsc` copies.
-
-## Autosave message never appears
-
-The current runtime watches `level.round_number` directly rather than depending on a cross-script round notify.
-
-Use:
-
-```text
-set zr_save_now 1
-```
-
-to isolate manual save behavior, and:
+Le format v4 ajoute les perks. Termine au moins une manche avec `0.4.0-rc1` pour créer un nouveau snapshot v4, puis vérifie :
 
 ```text
 set zr_status 1
 ```
 
-to inspect the current/saved round.
+La console doit indiquer `format=4`.
 
-## Resume flow
+## Un mate reçoit les armes/stats d'un autre
 
-After relaunching the same map:
+Cela ne doit plus arriver en format v3+ : les joueurs sont appariés strictement avec `GetGuid()` et aucun fallback par nom n'est utilisé.
+
+Si le problème réapparaît, capture les lignes `[T5ZR] Restored player ... from save slot ...` et le nombre de joueurs sauvegardés. Ne publie pas les GUID complets dans une issue publique.
+
+## Les armes/points reviennent mais pas les perks
+
+En `0.4.0-rc1`, cherche d'abord une erreur de compilation ou runtime autour de :
 
 ```text
-set zr_status 1
-set zr_resume 1
-map_restart
+maps/_zombiemode_perks
+give_perk
+unknown function
 ```
 
-The runtime should prepare the saved round, then each saved participant should receive exactly one GUID-matched restore.
+Le runtime utilise le même appel cross-script que les scripts Zombies stock :
+
+```text
+self maps\_zombiemode_perks::give_perk(perk, false)
+```
+
+Si la map charge mais un perk précis n'a pas d'effet, indique le perk, la map et si son icône HUD apparaît.
+
+## Jugger-Nog a l'icône mais pas la bonne vie
+
+C'est précisément pour éviter ce cas que le mod ne se limite pas à `SetPerk`. Le stock `give_perk` applique `SetMaxHealth` pour Jugger-Nog.
+
+Si l'effet est faux, capture le log de reprise et indique si la partie est en mutateur particulier.
+
+## Mule Kick / troisième arme
+
+Les perks sont restaurés avant les armes. Une troisième primaire n'est reconstruite qu'après la restauration de `specialty_additionalprimaryweapon`.
+
+Si la troisième arme manque :
+
+1. confirme que Mule Kick était réellement actif au moment de l'autosave ;
+2. confirme que la save est format v4 ;
+3. envoie le log autour de `Restored ... perk(s)` et `Restored player ...`.
+
+## Quick Revive solo
+
+Le perk actif est restauré via le chemin stock. En revanche, le format v4 ne sauvegarde pas encore l'historique complet du nombre d'achats/utilisations de Quick Revive au cours de la session précédente.
+
+## Power, portes, Box ou Pack-a-Punch ne reviennent pas
+
+Normal pour le format v4. Ce sont des états de map, pas des champs joueur. Ils seront ajoutés avec des adaptateurs spécifiques par map afin de respecter les effets secondaires des scripts stock.
+
+## Le numéro de manche est mauvais
+
+Capture :
+
+```text
+[T5ZR] Prepared v4 resume at round ...
+```
+
+Le mod reconstruit une frontière de manche stable ; il ne tente pas de restaurer une manche en cours avec ses zombies vivants.
