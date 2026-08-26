@@ -2,53 +2,23 @@
 
 ## Le script ne se charge pas
 
-Chemin attendu :
+Chemin attendu:
 
 ```text
 %localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Évite une seconde copie directement sous `scripts\sp`.
-
-## Crash `ddl/stats.ddl`
-
-La version actuelle ne nécessite aucune DLL externe. Sur la configuration r5346 de développement, `t5-gsc-utils.dll` provoquait ce crash ; garde-la désactivée.
-
 ## La save disparaît après fermeture complète
 
-Exécute `install.ps1` avec Plutonium fermé. Les clés `zr_sv_*` doivent être enregistrées avec `seta` dans `storage\t5\players\config.cfg`.
-
-## Une save beta.1 ne se charge plus
-
-Beta.2 utilise le **format v6**. Une save v5 est volontairement refusée.
-
-Crée une nouvelle autosave, puis:
-
-```text
-set zr_status 1
-```
-
-La console doit indiquer `format=6`.
+Exécute `install.ps1` avec Plutonium fermé. Les `zr_sv_*` doivent être archivés dans `storage\t5\players\config.cfg`.
 
 ## Le tableau de scores repart à zéro
 
-Beta.2 restaure désormais les champs réseau BO1 `kills`, `headshots`, `downs`, `revives` en plus des `stats[]` internes.
+Le format v6 restaure les champs réseau BO1 `kills`, `headshots`, `downs`, `revives` ainsi que les miroirs `stats[]`.
 
-Si le tableau est encore faux, relève les quatre valeurs avant l'autosave et après la reprise, puis garde la ligne:
+## Les manches de chiens sont sautées
 
-```text
-[T5ZR] Restored player ...
-```
-
-## Les manches de chiens disparaissent / sont sautées
-
-Lance:
-
-```text
-set zr_status 1
-```
-
-Beta.2 affiche:
+`set zr_status 1` affiche:
 
 ```text
 dogs_enabled=...
@@ -57,30 +27,56 @@ dog_count=...
 next_dog_round=...
 ```
 
-Sur une save faite juste avant une manche de chiens, `dog_active=1` signifie que la manche sauvegardée doit reprendre directement avec les hellhounds.
+Après reprise, cherche aussi `[T5ZR] Dog scheduler restored`.
 
-La reprise doit aussi afficher:
+## Le bouton T5ZR n'apparaît pas dans le lobby
 
-```text
-[T5ZR] Dog scheduler restored: ...
+Le menu est optionnel. Ferme Plutonium puis lance:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallMenu
 ```
 
-## Un mate reçoit le snapshot d'un autre joueur
+Le bouton n'apparaît que pour l'hôte avec une save v6 valide sur une map supportée.
 
-Cela ne doit pas arriver: l'appariement utilise uniquement `GetGuid()`. Masque les GUID avant de publier un log.
+Vérifie aussi:
 
-## Les perks ne reviennent pas
+```text
+set zr_status 1
+```
 
-Le runtime utilise le chemin stock `maps\_zombiemode_perks::give_perk`. Indique le perk, la map, l'icône HUD et l'effet gameplay observé.
+et confirme `saved_valid=1` / `format=6`.
 
-## Le courant ou une porte Kino ne revient pas
+## Le lobby/menu est cassé après -InstallMenu
 
-Vérifie `format=6` et `world=kino_v1` dans `zr_status`, puis fournis la ligne `Kino world restored` et précise la porte concernée.
+Ferme Plutonium puis:
 
-## Mystery Box
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -RemoveMenu
+```
 
-Sa position/historique n'est pas encore persisté. C'est une limitation connue.
+T5ZR retire son override et restaure automatiquement le menu précédent s'il avait été sauvegardé.
+
+Si un autre mod UI remplace également `xboxlive_privatelobby.menu`, les deux ne peuvent pas être empilés naïvement.
+
+## Le bouton lance une nouvelle partie au lieu de reprendre
+
+Cherche dans la console:
+
+```text
+[T5ZR] Prepared v6 resume at round ...
+```
+
+S'il n'apparaît pas, relève `set zr_status 1` et la map lancée.
+
+## Crash ddl/stats.ddl
+
+Aucune DLL externe n'est requise. Garde l'ancien `t5-gsc-utils.dll` désactivé sur la configuration r5346 testée.
+
+## Mystery Box / Easter Egg / timers
+
+Ces états restent hors snapshot pour le moment.
 
 ## Signaler un bug public
 
-Inclure build T5, map, nombre de joueurs, round sauvegardé, résultat attendu/obtenu et les lignes `[T5ZR]` utiles. Retirer GUIDs, IPs, tokens et chemins personnels.
+Inclure build T5, map, nombre de joueurs, round, résultat attendu/obtenu et les lignes `[T5ZR]` utiles. Pour un problème UI, préciser les autres mods de menu installés. Retirer GUIDs, IPs, tokens et chemins personnels.
