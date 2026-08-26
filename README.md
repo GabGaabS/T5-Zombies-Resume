@@ -1,15 +1,21 @@
 # T5 Zombies Resume
 
-> Sauvegarder une partie coop Zombies de **Call of Duty: Black Ops (BO1)** sur **Plutonium T5**, fermer complètement le jeu, puis reprendre plus tard à partir de la manche suivante.
+> Prototype host-only pour sauvegarder une partie coop Zombies de **Call of Duty: Black Ops (BO1)** sur **Plutonium T5**, quitter le jeu, puis tenter de reprendre plus tard à partir d'une frontière de manche stable.
 
 ![Status](https://img.shields.io/badge/status-exp%C3%A9rimental-orange)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.0--native--test-blue)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-## ⚠️ Projet expérimental
+## ⚠️ Statut actuel
 
-**T5 Zombies Resume est actuellement un prototype v0.1.0.** Le premier objectif est de stabiliser la reprise sur **Kino der Toten** avant d'étendre progressivement la sauvegarde aux perks et à l'état du monde.
+**T5 Zombies Resume est un prototype expérimental.**
+
+La version actuelle, `0.2.0-native-test`, a été créée après avoir confirmé sur **Plutonium T5 r5346** que la DLL tierce `t5-gsc-utils.dll` pouvait faire planter le jeu dès l'initialisation avec une erreur liée à `ddl/stats.ddl`.
+
+Le projet a donc été basculé vers une architecture **GSC-only**, sans DLL externe.
+
+Cette version doit encore être validée en jeu sur Kino der Toten. En particulier, il faut confirmer que les `SavedDvar` personnalisés utilisés pour stocker l'état persistent correctement après une fermeture complète de Plutonium.
 
 Ce projet n'est affilié ni à Activision, ni à Treyarch, ni à Steam, ni à l'équipe Plutonium.
 
@@ -17,33 +23,31 @@ Ce projet n'est affilié ni à Activision, ni à Treyarch, ni à Steam, ni à l'
 
 ## 🤖 Transparence : projet développé avec l'aide de l'IA
 
-Ce projet a été imaginé à partir d'un besoin concret : pouvoir interrompre une longue partie Zombies entre amis et la reprendre plus tard.
+Le projet a été imaginé à partir d'un besoin concret : pouvoir interrompre une longue partie Zombies entre amis et la reprendre plus tard.
 
 Une partie importante de la recherche, de l'architecture, de la documentation et du code initial a été réalisée avec l'aide de **ChatGPT / OpenAI et Codex**.
 
-Cela signifie que :
+Cela signifie notamment que :
 
 - le code initial a été généré et relu avec l'aide d'IA ;
-- l'IA a analysé des scripts publics BO1/T5 et les fonctions exposées par `t5-gsc-utils` ;
-- le code doit être validé en conditions réelles sur Plutonium ;
-- une modification générée par IA n'est pas automatiquement considérée comme correcte ;
-- toute évolution importante doit être testée en partie privée avant d'être considérée comme stable.
-
-Le but n'est pas de cacher l'utilisation de l'IA : ce dépôt est aussi une expérience de développement collaboratif **humain + IA**.
+- l'IA a analysé des scripts publics BO1/T5 et des logs Plutonium réels ;
+- les changements sont corrigés progressivement à partir des erreurs de compilation/runtime observées ;
+- une modification générée par IA n'est jamais considérée comme correcte tant qu'elle n'a pas été testée en jeu ;
+- l'objectif du dépôt est aussi d'expérimenter un workflow de développement **humain + IA** transparent.
 
 ---
 
 # 🎮 À quoi sert le mod ?
 
-Dans BO1 Zombies, une partie coop peut durer plusieurs heures. Si l'host ferme la partie, la session n'est normalement pas conçue pour être reprise plus tard comme une sauvegarde de campagne.
+BO1 Zombies n'est pas conçu pour reprendre une longue session coop privée après fermeture complète du jeu.
 
-T5 Zombies Resume tente de sauvegarder une représentation utile de la session sur le PC de l'host.
+T5 Zombies Resume tente de reconstruire une partie à partir d'un état de gameplay de haut niveau sauvegardé à la fin d'une manche.
 
-Exemple :
+Exemple visé :
 
 ```text
 Soir 1
-Kino - manche 26 terminée
+Kino - fin de manche
         ↓
 autosave
         ↓
@@ -52,344 +56,352 @@ fermeture complète de Plutonium
 Soir 2
 l'host relance Plutonium
         ↓
-active la reprise
+set zr_resume 1
         ↓
-invite les mêmes amis
+les mêmes amis rejoignent
         ↓
-relance Kino
+l'host relance Kino
         ↓
-la partie tente de reprendre manche 27
+le mod tente de restaurer la prochaine manche
 ```
 
-## Ce que la v0.1 sauvegarde
+Il ne s'agit **pas** d'un snapshot complet de la RAM du jeu.
+
+---
+
+# 💾 État sauvegardé par `0.2.0-native-test`
+
+La version actuelle tente de sauvegarder :
 
 - nom de la map ;
 - prochaine manche ;
-- GUID et nom des joueurs ;
+- jusqu'à 4 joueurs ;
+- nom de chaque joueur ;
 - points ;
 - score total ;
-- armes principales ;
+- jusqu'à 3 armes principales ;
 - munitions dans le chargeur ;
 - munitions en réserve ;
-- arme actuellement sélectionnée quand possible ;
-- une sauvegarde de secours `.backup.json`.
+- arme sélectionnée quand possible.
 
-## Ce qui n'est pas encore restauré
+Pour limiter les dépendances pendant la validation r5346, les joueurs sont actuellement retrouvés par **nom exact** et non par GUID.
+
+## Pas encore sauvegardé
 
 - perks ;
 - courant/power ;
 - portes et débris ;
 - Mystery Box ;
 - pièges ;
-- état Pack-a-Punch / téléporteurs ;
+- téléporteur / Pack-a-Punch ;
 - Easter Eggs / quêtes ;
-- zombies vivants, positions et RNG au milieu d'une manche.
+- zombies vivants ;
+- positions exactes ;
+- RNG ;
+- état complet d'une manche en cours.
 
-La v0.1 est donc une **reprise logique entre deux manches**, pas un save-state de la mémoire du jeu.
+La reprise doit donc se faire sur une **frontière de manche stable**.
+
+---
+
+# 🧠 Architecture actuelle : GSC-only
+
+La première version du projet utilisait `t5-gsc-utils.dll` pour écrire des fichiers JSON et enregistrer des commandes console personnalisées.
+
+Sur la configuration de test **Plutonium T5 r5346**, cette DLL a été confirmée comme cause d'un crash au démarrage : le jeu fonctionne normalement quand la DLL est désactivée.
+
+La version actuelle n'utilise donc plus :
+
+```text
+t5-gsc-utils.dll
+JSON externe
+addCommand()
+executeCommand()
+fileExists()
+writeFile()
+jsonDump()
+jsonParse()
+```
+
+À la place, elle utilise les fonctions natives BO1/T5 telles que :
+
+```text
+SetSavedDvar
+GetDvar
+GetDvarInt
+SetDvar
+```
+
+Les scripts Zombies stock de BO1 utilisent eux-mêmes `SetSavedDvar` pour certaines valeurs moteur. Le prototype réutilise ce mécanisme avec des dvars `zr_sv_*` dédiés.
+
+**La persistance des dvars personnalisés après fermeture complète reste à valider en conditions réelles.**
 
 ---
 
 # 👥 Installation host-only
 
-Le but du MVP est que **seul l'host installe le mod**.
+L'objectif reste que **seul l'host installe le GSC**.
 
-Les amis n'ont normalement rien à installer pour rejoindre la partie privée. La v0.1 ne contient aucun asset client personnalisé.
+Les autres joueurs n'ont pas besoin d'installer d'asset client pour le prototype actuel.
 
-Deux éléments sont nécessaires sur le PC de l'host :
+## Prérequis
 
-1. `t5-gsc-utils.dll` — plugin Plutonium qui fournit les fonctions fichier/JSON/commandes ;
-2. `zombie_resume.gsc` — le mod de sauvegarde/reprise de ce dépôt.
+- Call of Duty: Black Ops sur PC ;
+- Plutonium T5 ;
+- Zombies fonctionnel sans le mod ;
+- aucune DLL `t5-gsc-utils` nécessaire.
 
 ---
 
-# 📦 1. Installer `t5-gsc-utils`
+# 🚫 Important pour Plutonium r5346 : désactiver `t5-gsc-utils`
 
-Projet officiel utilisé par ce mod :
-
-https://github.com/alicealys/t5-gsc-utils
-
-Télécharge la dernière version de `t5-gsc-utils.dll`.
-
-Le dossier attendu est :
+Si tu avais installé la DLL lors des premiers tests, ferme complètement Plutonium et vérifie :
 
 ```text
 %localappdata%\Plutonium\plugins\
 ```
 
-Le fichier final doit donc être :
+Si tu as :
 
 ```text
-%localappdata%\Plutonium\plugins\t5-gsc-utils.dll
+t5-gsc-utils.dll
 ```
 
-### Je n'ai pas de dossier `plugins`
-
-C'est normal : **crée-le manuellement**.
-
-1. `Win + R`
-2. colle :
+renomme-la par exemple en :
 
 ```text
-%localappdata%\Plutonium
+t5-gsc-utils.dll.disabled
 ```
 
-3. crée un dossier nommé :
+Commande PowerShell :
 
-```text
-plugins
+```powershell
+Rename-Item "$env:LOCALAPPDATA\Plutonium\plugins\t5-gsc-utils.dll" "t5-gsc-utils.dll.disabled"
 ```
 
-4. place `t5-gsc-utils.dll` dedans.
-
-⚠️ Le dossier `plugins` est directement sous `Plutonium`, **pas** sous `storage\t5`.
-
-Structure attendue :
-
-```text
-Plutonium\
-├── plugins\
-│   └── t5-gsc-utils.dll
-└── storage\
-    └── t5\
-```
+Sur la configuration r5346 testée, garder cette DLL active provoquait une erreur d'initialisation `ddl/stats.ddl` avant même le chargement de Kino.
 
 ---
 
-# 📜 2. Installer `zombie_resume.gsc`
+# 📜 Installer `zombie_resume.gsc`
 
-Le script source se trouve ici :
+Le fichier source est :
 
 ```text
 src\zombie_resume.gsc
 ```
 
-## Important : partie privée / solo
-
-Pour T5 Zombies en partie privée/solo, le chargement le plus fiable consiste à placer le script dans le **dossier correspondant à la map** sous :
+Les logs Plutonium r5346 utilisés pendant le développement confirment le chargement Zombies depuis :
 
 ```text
-%localappdata%\Plutonium\storage\t5\scripts\sp\
+%localappdata%\Plutonium\storage\t5\scripts\sp\zom\
 ```
 
-Ces dossiers peuvent ne pas exister : **crée-les manuellement**.
-
-### Kino der Toten — recommandé pour le premier test
-
-Crée :
+Le fichier final doit donc être :
 
 ```text
-%localappdata%\Plutonium\storage\t5\scripts\sp\zombie_theater\
+%localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Puis place le fichier ici :
-
-```text
-%localappdata%\Plutonium\storage\t5\scripts\sp\zombie_theater\zombie_resume.gsc
-```
+Les dossiers peuvent être créés manuellement s'ils n'existent pas.
 
 Structure attendue :
 
 ```text
 Plutonium\
 ├── plugins\
-│   └── t5-gsc-utils.dll
+│   └── t5-gsc-utils.dll.disabled   # uniquement si tu l'avais déjà installée
+│
 └── storage\
     └── t5\
         └── scripts\
             └── sp\
-                └── zombie_theater\
+                └── zom\
                     └── zombie_resume.gsc
 ```
 
-## Noms de dossiers des maps
-
-Pour installer le script sur plusieurs maps, copie le même `zombie_resume.gsc` dans le dossier de chaque map :
-
-| Map | Dossier |
-|---|---|
-| Kino der Toten | `zombie_theater` |
-| Five | `zombie_pentagon` |
-| Ascension | `zombie_cosmodrome` |
-| Call of the Dead | `zombie_coast` |
-| Shangri-La | `zombie_temple` |
-| Moon | `zombie_moon` |
-| Nacht der Untoten | `zombie_cod5_prototype` |
-| Verrückt | `zombie_cod5_asylum` |
-| Shi No Numa | `zombie_cod5_sumpf` |
-| Der Riese | `zombie_cod5_factory` |
-
-Exemple pour Ascension :
+Ne mets pas une deuxième copie directement dans :
 
 ```text
-%localappdata%\Plutonium\storage\t5\scripts\sp\zombie_cosmodrome\zombie_resume.gsc
+scripts\sp\zombie_resume.gsc
 ```
 
-## Et le dossier `zom` ?
-
-On rencontre aussi ce chemin dans des scripts T5 :
-
-```text
-%localappdata%\Plutonium\storage\t5\scripts\sp\zom\
-```
-
-Il peut être utilisé dans certains contextes Zombies/serveur, mais sur T5 privé/solo le comportement a historiquement été moins uniforme selon les scripts et les builds.
-
-**Pour ce projet, utilise d'abord les dossiers spécifiques aux maps.**
-
-Tu n'as donc pas besoin d'avoir un dossier `zom` pour tester Kino.
+car `scripts\sp` peut également être chargé sur le frontend selon la build.
 
 ---
 
-# ⚡ Installation automatique des dossiers
+# ⚡ Installation automatique
 
-Le dépôt contient également :
-
-```text
-install.ps1
-```
-
-Ce script :
-
-- crée `%localappdata%\Plutonium\plugins` s'il manque ;
-- crée les dossiers T5 Zombies nécessaires ;
-- copie `src\zombie_resume.gsc` dans les dossiers de maps connus ;
-- n'installe pas automatiquement une DLL téléchargée sur Internet.
-
-Depuis PowerShell, à la racine du dépôt :
+Depuis la racine du dépôt :
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Tu dois ensuite placer toi-même `t5-gsc-utils.dll` dans le dossier `plugins` créé par le script.
+L'installateur actuel :
+
+- crée `scripts\sp\zom` si nécessaire ;
+- nettoie les anciennes copies du GSC dans les emplacements précédemment testés ;
+- copie la dernière version de `src\zombie_resume.gsc` ;
+- **ne télécharge plus aucune DLL** ;
+- avertit si `t5-gsc-utils.dll` est encore active.
+
+Après un `git pull`, relance simplement :
+
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
 
 ---
 
-# 🎮 Utilisation
+# ✅ Vérifier que le mod se charge
 
-Une fois le plugin DLL et le GSC installés :
+Lance Kino der Toten.
 
-1. démarre Plutonium T5 ;
-2. lance Zombies ;
-3. crée une partie privée sur Kino ;
-4. regarde la console host.
-
-Le mod doit afficher quelque chose proche de :
+Dans la console Plutonium, cherche :
 
 ```text
-[T5ZR] T5 Zombies Resume v0.1.0 loaded
+Loading script scripts/sp/zom/zombie_resume.gsc...
+Script scripts/sp/zom/zombie_resume.gsc loaded successfully.
 ```
 
-## Commandes host
+Puis :
 
-### `zstatus`
+```text
+[T5ZR] T5 Zombies Resume v0.2.0-native-test loaded (native GSC, no DLL)
+```
 
-Affiche l'état du mod : version, map, manche, chemin de sauvegarde et statut de reprise.
+Si tu obtiens une `Server script compile error`, copie le bloc exact dans une issue ou dans la conversation de développement.
+
+---
+
+# 🎛️ Commandes de test
+
+Comme la version native n'utilise plus `addCommand`, les anciens :
 
 ```text
 zstatus
-```
-
-### `zsave`
-
-Force une sauvegarde manuelle.
-
-```text
 zsave
-```
-
-Il est recommandé de sauvegarder **entre deux manches**.
-
-### `zresume`
-
-Charge la sauvegarde de la map actuelle après un `map_restart`.
-
-```text
 zresume
 ```
 
-Cette commande est surtout utile pour tester rapidement sans fermer Plutonium.
+n'existent plus actuellement.
+
+Ils sont remplacés provisoirement par des dvars que le script surveille.
+
+## Afficher l'état
+
+Dans la console pendant la partie :
+
+```text
+set zr_status 1
+```
+
+La console doit afficher la version du mod, la map, la sauvegarde détectée et la manche sauvegardée.
+
+## Sauvegarde manuelle
+
+```text
+set zr_save_now 1
+```
+
+Le script remet automatiquement le dvar à `0` après traitement.
+
+## Autosave
+
+L'autosave se déclenche automatiquement après :
+
+```text
+level waittill("between_round_over")
+```
+
+Le numéro stocké correspond donc à la prochaine manche que le jeu s'apprête à jouer.
 
 ---
 
-# 💾 Reprendre après avoir complètement fermé le jeu
+# 🔄 Reprendre une sauvegarde
 
-Quand Plutonium est fermé, le script GSC ne tourne évidemment plus.
+## Test sans fermer Plutonium
 
-Au prochain lancement :
-
-1. démarre Plutonium T5 ;
-2. ouvre la console ;
-3. exécute :
+Après avoir obtenu une sauvegarde valide :
 
 ```text
-set zr_autoresume 1
+set zr_resume 1
+map_restart
 ```
 
-4. invite les mêmes amis ;
-5. démarre **la même map**.
+Au redémarrage de la map, le script doit détecter la demande et afficher :
 
-Si la sauvegarde est valide, le mod tente de :
+```text
+[T5ZR] Prepared native resume at round X
+```
 
-- charger le numéro de manche ;
-- retrouver les joueurs par GUID ;
-- restaurer leurs points ;
-- restaurer armes et munitions.
+Puis il tente de restaurer les joueurs à leur prochain spawn.
 
-Le flag `zr_autoresume` est consommé après acceptation de la sauvegarde.
+## Test après fermeture complète
+
+1. joue jusqu'à avoir vu un message `[T5ZR] Saved ...` ;
+2. ferme complètement Plutonium ;
+3. relance Plutonium ;
+4. **avant de lancer Kino**, ouvre la console ;
+5. tape :
+
+```text
+set zr_resume 1
+```
+
+6. lance la même map avec les mêmes noms de joueurs.
+
+Ce test est important : il permettra de confirmer ou d'infirmer la persistance réelle des `SavedDvar` personnalisés sur Plutonium T5 r5346.
 
 ---
 
-# 📁 Où sont les sauvegardes ?
+# 🧪 Protocole de validation recommandé sur Kino
 
-`t5-gsc-utils` travaille relativement au `fs_homepath` T5.
+Pour le premier vrai test, fais volontairement quelque chose de court :
 
-Le mod crée :
+1. démarre Kino sans `t5-gsc-utils.dll` active ;
+2. vérifie le message `0.2.0-native-test loaded` ;
+3. joue jusqu'à la fin de la manche 2 ou 3 ;
+4. vérifie qu'un message `[T5ZR] Saved zombie_theater -> round ...` apparaît ;
+5. tape `set zr_status 1` ;
+6. note la manche, les points, armes et munitions ;
+7. teste d'abord `set zr_resume 1` puis `map_restart` ;
+8. si cela fonctionne, fais ensuite le test avec fermeture complète de Plutonium.
 
-```text
-zombie_resume\saves\<mapname>.json
-zombie_resume\saves\<mapname>.backup.json
-```
-
-Exemple :
-
-```text
-zombie_resume\saves\zombie_theater.json
-```
-
-Ne modifie pas manuellement le JSON sauf pour du debug.
+Ne teste pas encore les perks ou l'état du monde : le but est d'abord de valider **chargement → sauvegarde native → persistance → reprise**.
 
 ---
 
-# 🧪 Premier test recommandé
+# 📁 Où est la sauvegarde ?
 
-Commence uniquement sur **Kino der Toten**.
+La version `0.2.0-native-test` ne crée plus de fichier JSON.
 
-1. Installe `t5-gsc-utils.dll`.
-2. Installe `zombie_resume.gsc` dans `scripts\sp\zombie_theater`.
-3. Lance Kino avec un ami.
-4. Exécute `zstatus`.
-5. Joue jusqu'à la manche 3.
-6. Termine la manche.
-7. Vérifie le message `[T5ZR] Saved`.
-8. Note les points, armes et munitions des deux joueurs.
-9. Exécute `zresume`.
-10. Vérifie la manche et les inventaires.
-11. Ferme complètement Plutonium.
-12. Relance-le.
-13. Exécute `set zr_autoresume 1`.
-14. Invite le même ami et relance Kino.
-15. Vérifie la restauration après redémarrage complet.
+L'état est stocké dans des dvars sauvegardés par le moteur, avec des noms comme :
 
-Si le script ne se charge pas ou produit une erreur, copie **l'erreur exacte de la console Plutonium** dans une issue GitHub.
+```text
+zr_sv_valid
+zr_sv_format
+zr_sv_map
+zr_sv_round
+zr_sv_player_count
+zr_sv_p0_name
+zr_sv_p0_score
+zr_sv_p0_w0_name
+zr_sv_p0_w0_clip
+zr_sv_p0_w0_stock
+```
+
+L'emplacement physique exact est géré par BO1/Plutonium ; le mod ne dépend pas d'un chemin de fichier utilisateur.
 
 ---
 
 # 🛡️ Steam / anti-cheat / sécurité
 
-Ce projet est conçu pour rester du côté **Plutonium T5 / partie Zombies privée**.
+Le projet est conçu uniquement pour **Plutonium T5 Zombies en partie privée**.
 
-Le projet ne contient pas :
+Il ne contient pas :
 
 - de bypass VAC ;
 - de contournement anti-cheat ;
@@ -398,67 +410,78 @@ Le projet ne contient pas :
 - de patch binaire de `BlackOps.exe` ;
 - de mécanisme destiné à cacher le mod à un anti-cheat.
 
-Le mod principal est un script GSC. `t5-gsc-utils.dll` est une dépendance tierce chargée par le système de plugins Plutonium.
+La version actuelle est encore plus simple que le premier prototype : il s'agit uniquement d'un script GSC chargé via le système de scripts de Plutonium.
 
-Aucun mod tiers ne peut garantir un risque absolu de zéro vis-à-vis des politiques futures d'une plateforme. **N'utilise pas ce prototype dans le multijoueur vanilla Steam.**
+Aucun mod tiers ne peut garantir un risque absolu de zéro vis-à-vis de futures politiques de plateforme. N'utilise pas ce prototype dans le multijoueur vanilla Steam.
 
 ---
 
 # 🗺️ Roadmap
 
-### v0.1
-- round ;
-- joueurs ;
+### `0.2.0-native-test`
+
+- supprimer la dépendance à `t5-gsc-utils` ;
+- charger correctement sur r5346 ;
+- tester `SetSavedDvar` avec des clés personnalisées ;
+- autosave de manche ;
 - points ;
-- armes principales ;
+- armes ;
 - munitions ;
-- sauvegarde JSON + backup.
+- reprise par nom de joueur.
 
-### v0.2
-- perks avec les vrais effets Zombies associés.
+### Étape suivante
 
-### v0.3
-- adaptateur Kino ;
-- courant ;
-- portes/débris ;
-- Mystery Box ;
-- état téléporteur/PaP quand raisonnable.
+Une fois la persistance native validée :
 
-### v0.4
-- adaptateurs Five, Ascension, CotD, Shangri-La et Moon.
+- améliorer l'identification des joueurs ;
+- fiabiliser le timing de restauration de manche ;
+- restaurer correctement le HUD des points ;
+- ajouter les perks en utilisant les vraies fonctions Zombies et leurs effets secondaires.
 
-### v0.5
-- plusieurs slots ;
-- migrations de format ;
-- meilleure récupération en cas de corruption ;
-- outils de diagnostic.
+### Adaptateurs de map
+
+Kino d'abord, puis :
+
+- Five ;
+- Ascension ;
+- Call of the Dead ;
+- Shangri-La ;
+- Moon ;
+- maps World at War incluses dans BO1.
+
+Les systèmes comme courant, portes, Box, téléporteur et Pack-a-Punch seront ajoutés map par map après inspection des scripts stock.
 
 ---
 
 # 🧠 Développement avec Codex
 
-Le fichier `AGENTS.md` donne les règles de développement pour les agents IA/Codex.
+Le fichier `AGENTS.md` contient les règles de développement pour les agents IA/Codex.
 
 Principes importants :
 
-- ne pas inventer les variables internes BO1 ;
-- vérifier les scripts stock T5 avant de modifier un système complexe ;
+- Plutonium T5 uniquement ;
+- pas de bypass anti-cheat ;
+- pas d'injection dans le BO1 Steam vanilla ;
+- vérifier les scripts stock avant de manipuler un sous-système Zombies ;
 - ajouter un sous-système à la fois ;
 - commencer par Kino ;
-- ne pas transformer le projet en bypass anti-cheat ;
-- toujours tester les changements dans Plutonium avant de les déclarer stables.
+- ne jamais annoncer une fonctionnalité comme stable avant un vrai test en jeu.
 
 ---
 
-# 🔗 Liens utiles
+# 🔗 Références
 
-- T5 Zombies Resume : https://github.com/GabGaabS/T5-Zombies-Resume
-- t5-gsc-utils : https://github.com/alicealys/t5-gsc-utils
+- dépôt : https://github.com/GabGaabS/T5-Zombies-Resume
 - scripts T5 de référence : https://github.com/plutoniummod/t5-scripts
 - documentation Plutonium : https://plutonium.pw/docs/
+- `t5-gsc-utils` : https://github.com/alicealys/t5-gsc-utils — **ancienne dépendance, actuellement désactivée pour r5346**
 
 ---
 
 # 📄 Licence
 
 MIT — voir `LICENSE`.
+
+---
+
+> **Objectif du projet :** une partie Zombies entre amis ne devrait pas être perdue juste parce que tout le monde doit aller dormir.
