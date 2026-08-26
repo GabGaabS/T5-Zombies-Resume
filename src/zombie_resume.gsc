@@ -2,14 +2,16 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.4.0-rc1
-// - save format v4
+// v0.5.0-beta.1 / save format v5
 // - strict player matching by engine GetGuid()
-// - round, score, primary weapons and ammo
-// - active Zombies perks restored through stock _zombiemode_perks::give_perk
-// - perks restored before weapons so Mule Kick can safely precede a third gun
-// - each saved slot and player can be restored only once per resumed session
-// - persistent zr_sv_* dvars are archived by install.ps1
+// - round, points, primary weapons, ammo and selected weapon
+// - Zombies perks restored through stock _zombiemode_perks::give_perk
+// - kills, headshots, downs, revives and related round stats
+// - Kino adapter: power, permanent doors/debris and fully-linked teleporter
+// - each saved slot/player is restored only once per resumed session
+//
+// Saves are intentionally made at round boundaries. Mid-round zombies, active
+// powerups, temporary trap/cooldown timers and RNG are not snapshots.
 
 zr_current_map()
 {
@@ -26,6 +28,16 @@ zr_int_or(value, fallback)
     return Int(value);
 }
 
+zr_bool_string(value)
+{
+    if (value)
+    {
+        return "1";
+    }
+
+    return "0";
+}
+
 zr_show_message(message)
 {
     players = GetPlayers();
@@ -38,11 +50,24 @@ zr_show_message(message)
 
 zr_store(key, value)
 {
-    // install.ps1 pre-registers zr_sv_* through `seta`, giving the dvars the
-    // archive flag. SetDvar updates the live archived value. SetSavedDvar is
-    // also kept because it is a native T5 builtin validated by the 0.2.x tests.
+    // install.ps1 registers zr_sv_* through `seta`, giving the custom dvars
+    // the archive flag. SetDvar changes the live archived value; SetSavedDvar
+    // is kept as the native T5 persistence path validated during development.
     SetDvar(key, value);
     SetSavedDvar(key, value);
+}
+
+zr_flag_is_set(flag_name)
+{
+    return common_scripts\utility::flag(flag_name);
+}
+
+zr_set_flag(flag_name)
+{
+    if (!common_scripts\utility::flag(flag_name))
+    {
+        common_scripts\utility::flag_set(flag_name);
+    }
 }
 
 zr_player_guid(player)
@@ -97,6 +122,15 @@ zr_clear_saved_player(slot)
     zr_store(zr_player_key(slot, "score_total"), "0");
     zr_store(zr_player_key(slot, "current_weapon"), "none");
     zr_store(zr_player_key(slot, "weapon_count"), "0");
+
+    zr_store(zr_player_key(slot, "kills"), "0");
+    zr_store(zr_player_key(slot, "kill_tracker"), "0");
+    zr_store(zr_player_key(slot, "headshots"), "0");
+    zr_store(zr_player_key(slot, "downs"), "0");
+    zr_store(zr_player_key(slot, "revives"), "0");
+    zr_store(zr_player_key(slot, "zombie_gibs"), "0");
+    zr_store(zr_player_key(slot, "perks_stat"), "0");
+
     zr_clear_saved_perks(slot);
 
     for (w = 0; w < 3; w++)
@@ -105,15 +139,32 @@ zr_clear_saved_player(slot)
     }
 }
 
+zr_clear_world_save()
+{
+    zr_store("zr_sv_world_adapter", "none");
+    zr_store("zr_sv_kino_power", "0");
+    zr_store("zr_sv_kino_magic_box_foyer1", "0");
+    zr_store("zr_sv_kino_magic_box_crematorium1", "0");
+    zr_store("zr_sv_kino_vip_to_dining", "0");
+    zr_store("zr_sv_kino_magic_box_alleyway1", "0");
+    zr_store("zr_sv_kino_dining_to_dressing", "0");
+    zr_store("zr_sv_kino_magic_box_dressing1", "0");
+    zr_store("zr_sv_kino_magic_box_west_balcony2", "0");
+    zr_store("zr_sv_kino_magic_box_west_balcony1", "0");
+    zr_store("zr_sv_kino_curtains_done", "0");
+    zr_store("zr_sv_kino_teleporter_linked", "0");
+}
+
 zr_clear_save()
 {
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "4");
+    zr_store("zr_sv_format", "5");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", "");
     zr_store("zr_sv_round", "0");
     zr_store("zr_sv_reason", "cleared");
     zr_store("zr_sv_player_count", "0");
+    zr_clear_world_save();
 
     for (i = 0; i < 4; i++)
     {
@@ -144,19 +195,15 @@ zr_save_player_perks(slot, player)
 {
     perk_count = 0;
 
-    // Base BO1 Zombies perks.
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_armorvest", perk_count);                 // Jugger-Nog
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_quickrevive", perk_count);              // Quick Revive
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_fastreload", perk_count);               // Speed Cola
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_rof", perk_count);                      // Double Tap
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_longersprint", perk_count);             // Stamin-Up
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_flakjacket", perk_count);               // PHD Flopper
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_deadshot", perk_count);                 // Deadshot Daiquiri
-    perk_count = zr_save_perk_if_present(slot, player, "specialty_additionalprimaryweapon", perk_count);  // Mule Kick
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_armorvest", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_quickrevive", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_fastreload", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_rof", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_longersprint", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_flakjacket", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_deadshot", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_additionalprimaryweapon", perk_count);
 
-    // The stock perk script also defines upgrade variants. They are uncommon
-    // in normal BO1 Zombies but saving them costs little and avoids silently
-    // dropping one if a map/mutator exposes it.
     perk_count = zr_save_perk_if_present(slot, player, "specialty_armorvest_upgrade", perk_count);
     perk_count = zr_save_perk_if_present(slot, player, "specialty_quickrevive_upgrade", perk_count);
     perk_count = zr_save_perk_if_present(slot, player, "specialty_fastreload_upgrade", perk_count);
@@ -172,6 +219,36 @@ zr_save_player_perks(slot, player)
     {
         zr_store(zr_perk_key(slot, p), "");
     }
+}
+
+zr_save_player_stats(slot, player)
+{
+    kills = 0;
+    downs = 0;
+    revives = 0;
+    headshots = 0;
+    zombie_gibs = 0;
+    perks_stat = 0;
+
+    if (IsDefined(player.stats))
+    {
+        kills = zr_int_or(player.stats["kills"], 0);
+        downs = zr_int_or(player.stats["downs"], 0);
+        revives = zr_int_or(player.stats["revives"], 0);
+        headshots = zr_int_or(player.stats["headshots"], 0);
+        zombie_gibs = zr_int_or(player.stats["zombie_gibs"], 0);
+        perks_stat = zr_int_or(player.stats["perks"], 0);
+    }
+
+    kill_tracker = zr_int_or(player.kill_tracker, kills);
+
+    zr_store(zr_player_key(slot, "kills"), "" + kills);
+    zr_store(zr_player_key(slot, "kill_tracker"), "" + kill_tracker);
+    zr_store(zr_player_key(slot, "headshots"), "" + headshots);
+    zr_store(zr_player_key(slot, "downs"), "" + downs);
+    zr_store(zr_player_key(slot, "revives"), "" + revives);
+    zr_store(zr_player_key(slot, "zombie_gibs"), "" + zombie_gibs);
+    zr_store(zr_player_key(slot, "perks_stat"), "" + perks_stat);
 }
 
 zr_save_player(slot, player)
@@ -193,6 +270,8 @@ zr_save_player(slot, player)
     zr_store(zr_player_key(slot, "score_total"), "" + total);
     zr_store(zr_player_key(slot, "current_weapon"), player GetCurrentWeapon());
     zr_store(zr_player_key(slot, "weapon_count"), "" + weapon_count);
+
+    zr_save_player_stats(slot, player);
     zr_save_player_perks(slot, player);
 
     if (guid == "" || guid == "0")
@@ -216,6 +295,37 @@ zr_save_player(slot, player)
     }
 }
 
+zr_save_kino_world()
+{
+    zr_store("zr_sv_world_adapter", "kino_v1");
+    zr_store("zr_sv_kino_power", zr_bool_string(zr_flag_is_set("power_on")));
+
+    // Kino's permanent route flags come directly from theater_zone_init().
+    zr_store("zr_sv_kino_magic_box_foyer1", zr_bool_string(zr_flag_is_set("magic_box_foyer1")));
+    zr_store("zr_sv_kino_magic_box_crematorium1", zr_bool_string(zr_flag_is_set("magic_box_crematorium1")));
+    zr_store("zr_sv_kino_vip_to_dining", zr_bool_string(zr_flag_is_set("vip_to_dining")));
+    zr_store("zr_sv_kino_magic_box_alleyway1", zr_bool_string(zr_flag_is_set("magic_box_alleyway1")));
+    zr_store("zr_sv_kino_dining_to_dressing", zr_bool_string(zr_flag_is_set("dining_to_dressing")));
+    zr_store("zr_sv_kino_magic_box_dressing1", zr_bool_string(zr_flag_is_set("magic_box_dressing1")));
+    zr_store("zr_sv_kino_magic_box_west_balcony2", zr_bool_string(zr_flag_is_set("magic_box_west_balcony2")));
+    zr_store("zr_sv_kino_magic_box_west_balcony1", zr_bool_string(zr_flag_is_set("magic_box_west_balcony1")));
+    zr_store("zr_sv_kino_curtains_done", zr_bool_string(zr_flag_is_set("curtains_done")));
+
+    // Only preserve the fully-linked state. A half-completed core/pad link is
+    // intentionally reset because its UI hints are driven by transient threads.
+    zr_store("zr_sv_kino_teleporter_linked", zr_bool_string(zr_flag_is_set("teleporter_linked")));
+}
+
+zr_save_world()
+{
+    zr_clear_world_save();
+
+    if (zr_current_map() == "zombie_theater")
+    {
+        zr_save_kino_world();
+    }
+}
+
 zr_save_game(reason)
 {
     if (!IsDefined(level.round_number))
@@ -233,14 +343,15 @@ zr_save_game(reason)
         player_count = 4;
     }
 
-    // Invalidate first so a partial write is never considered resumable.
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "4");
+    zr_store("zr_sv_format", "5");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", zr_current_map());
     zr_store("zr_sv_round", "" + level.round_number);
     zr_store("zr_sv_reason", reason);
     zr_store("zr_sv_player_count", "" + player_count);
+
+    zr_save_world();
 
     for (i = 0; i < 4; i++)
     {
@@ -256,7 +367,7 @@ zr_save_game(reason)
 
     zr_store("zr_sv_valid", "1");
 
-    println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + "), players=" + player_count);
+    println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + "), players=" + player_count + ", world=" + GetDvar("zr_sv_world_adapter"));
     zr_show_message("^2T5ZR:^7 sauvegarde OK - prochaine manche " + level.round_number);
 }
 
@@ -299,7 +410,7 @@ zr_print_status()
 {
     println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + level.round_number);
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
-    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " resume_request=" + GetDvar("zr_resume"));
+    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume"));
 
     zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
 }
@@ -334,7 +445,6 @@ zr_find_saved_slot(player)
 {
     guid = zr_player_guid(player);
 
-    // Safety rule: never fall back to player.name.
     if (guid == "" || guid == "0")
     {
         return -1;
@@ -390,20 +500,11 @@ zr_restore_player_perks(slot)
     {
         perk = GetDvar(zr_perk_key(slot, p));
 
-        if (perk == "")
+        if (perk == "" || self HasPerk(perk))
         {
             continue;
         }
 
-        if (self HasPerk(perk))
-        {
-            continue;
-        }
-
-        // Reuse Treyarch's stock Zombies path. This applies the actual perk,
-        // HUD/icon, perk_think lifecycle and perk-specific side effects such as
-        // Jugger-Nog max health and Deadshot's client flag. Passing false avoids
-        // purchase VO while keeping the gameplay setup.
         self maps\_zombiemode_perks::give_perk(perk, false);
         restored++;
         wait 0.05;
@@ -412,13 +513,37 @@ zr_restore_player_perks(slot)
     println("[T5ZR] Restored " + restored + " perk(s) for " + self.name + ".");
 }
 
+zr_restore_player_stats(slot)
+{
+    if (!IsDefined(self.stats))
+    {
+        self.stats = [];
+    }
+
+    kills = GetDvarInt(zr_player_key(slot, "kills"));
+
+    self.stats["kills"] = kills;
+    self.stats["score"] = GetDvarInt(zr_player_key(slot, "score_total"));
+    self.stats["downs"] = GetDvarInt(zr_player_key(slot, "downs"));
+    self.stats["revives"] = GetDvarInt(zr_player_key(slot, "revives"));
+    self.stats["perks"] = GetDvarInt(zr_player_key(slot, "perks_stat"));
+    self.stats["headshots"] = GetDvarInt(zr_player_key(slot, "headshots"));
+    self.stats["zombie_gibs"] = GetDvarInt(zr_player_key(slot, "zombie_gibs"));
+
+    self.kill_tracker = GetDvarInt(zr_player_key(slot, "kill_tracker"));
+
+    if (self.kill_tracker < kills)
+    {
+        self.kill_tracker = kills;
+    }
+}
+
 zr_restore_player_slot(slot)
 {
     level.zr_slot_claimed[slot] = true;
     self.zr_restore_applied = true;
 
-    // Restore perks before weapons. Mule Kick must exist before a possible
-    // third primary is rebuilt.
+    // Mule Kick needs to exist before a possible third primary is rebuilt.
     self zr_restore_player_perks(slot);
 
     self.score = GetDvarInt(zr_player_key(slot, "score"));
@@ -460,8 +585,209 @@ zr_restore_player_slot(slot)
         self SwitchToWeapon(current);
     }
 
+    // give_perk updates the perk-consumption stat, so restore the exact saved
+    // scoreboard values only after all perks have been rebuilt.
+    self zr_restore_player_stats(slot);
+
     self iPrintLnBold("^2T5ZR:^7 partie restauree - manche " + level.round_number);
-    println("[T5ZR] Restored player " + self.name + " from save slot " + slot + ".");
+    println("[T5ZR] Restored player " + self.name + " from save slot " + slot + ": kills=" + self.stats["kills"] + ", perks=" + self.num_perks + ".");
+}
+
+zr_entity_uses_flag(entity, flag_name)
+{
+    if (!IsDefined(entity) || !IsDefined(entity.script_flag))
+    {
+        return false;
+    }
+
+    tokens = StrTok(entity.script_flag, ",");
+
+    for (i = 0; i < tokens.size; i++)
+    {
+        if (tokens[i] == flag_name)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+zr_force_open_door(trigger)
+{
+    if (!IsDefined(trigger))
+    {
+        return;
+    }
+
+    if (IsDefined(trigger._door_open) && trigger._door_open)
+    {
+        return;
+    }
+
+    // Stop the normal purchase loop, move the classified door pieces using the
+    // stock blocker helper, disable both-side triggers, then run the stock
+    // door_opened bookkeeping (script flags / paths / zone notifications).
+    trigger notify("kill_door_think");
+
+    if (IsDefined(trigger.doors))
+    {
+        for (i = 0; i < trigger.doors.size; i++)
+        {
+            trigger.doors[i] maps\_zombiemode_blockers::door_activate(0.05);
+        }
+    }
+
+    if (IsDefined(trigger.target))
+    {
+        all_trigs = GetEntArray(trigger.target, "target");
+
+        for (i = 0; i < all_trigs.size; i++)
+        {
+            all_trigs[i] common_scripts\utility::trigger_off();
+        }
+    }
+
+    trigger maps\_zombiemode_blockers::door_opened();
+    trigger._door_open = true;
+    trigger notify("door_opened");
+}
+
+zr_force_clear_debris(trigger)
+{
+    if (!IsDefined(trigger) || !IsDefined(trigger.target))
+    {
+        return;
+    }
+
+    if (IsDefined(trigger.script_flag))
+    {
+        tokens = StrTok(trigger.script_flag, ",");
+
+        for (i = 0; i < tokens.size; i++)
+        {
+            zr_set_flag(tokens[i]);
+        }
+    }
+
+    // At load time there is no reason to replay a purchased debris animation.
+    // Reconnect paths and remove the blocker pieces immediately.
+    junk = GetEntArray(trigger.target, "targetname");
+
+    for (i = 0; i < junk.size; i++)
+    {
+        if (IsDefined(junk[i]))
+        {
+            junk[i] ConnectPaths();
+            junk[i] Delete();
+        }
+    }
+
+    all_trigs = GetEntArray(trigger.target, "target");
+
+    for (i = 0; i < all_trigs.size; i++)
+    {
+        if (IsDefined(all_trigs[i]))
+        {
+            all_trigs[i] Delete();
+        }
+    }
+}
+
+zr_restore_kino_route_flag(flag_name)
+{
+    doors = GetEntArray("zombie_door", "targetname");
+
+    for (i = 0; i < doors.size; i++)
+    {
+        if (zr_entity_uses_flag(doors[i], flag_name))
+        {
+            zr_force_open_door(doors[i]);
+        }
+    }
+
+    debris = GetEntArray("zombie_debris", "targetname");
+
+    for (i = 0; i < debris.size; i++)
+    {
+        if (zr_entity_uses_flag(debris[i], flag_name))
+        {
+            zr_force_clear_debris(debris[i]);
+        }
+    }
+
+    // Some route flags may not have a directly matching trigger on every map
+    // revision. Setting it still keeps the stock zone manager in sync.
+    zr_set_flag(flag_name);
+}
+
+zr_restore_kino_world()
+{
+    if (GetDvar("zr_sv_world_adapter") != "kino_v1")
+    {
+        return;
+    }
+
+    // _zombiemode::main initializes blockers/perks before round play. Give its
+    // threaded blocker setup a short head start so door.doors is classified.
+    wait 0.75;
+
+    if (GetDvarInt("zr_sv_kino_power") == 1)
+    {
+        power_trigger = GetEnt("use_elec_switch", "targetname");
+
+        if (IsDefined(power_trigger))
+        {
+            power_trigger Delete();
+        }
+
+        zr_set_flag("power_on");
+        Objective_State(8, "done");
+    }
+
+    if (GetDvarInt("zr_sv_kino_magic_box_foyer1") == 1)
+        zr_restore_kino_route_flag("magic_box_foyer1");
+    if (GetDvarInt("zr_sv_kino_magic_box_crematorium1") == 1)
+        zr_restore_kino_route_flag("magic_box_crematorium1");
+    if (GetDvarInt("zr_sv_kino_vip_to_dining") == 1)
+        zr_restore_kino_route_flag("vip_to_dining");
+    if (GetDvarInt("zr_sv_kino_magic_box_alleyway1") == 1)
+        zr_restore_kino_route_flag("magic_box_alleyway1");
+    if (GetDvarInt("zr_sv_kino_dining_to_dressing") == 1)
+        zr_restore_kino_route_flag("dining_to_dressing");
+    if (GetDvarInt("zr_sv_kino_magic_box_dressing1") == 1)
+        zr_restore_kino_route_flag("magic_box_dressing1");
+    if (GetDvarInt("zr_sv_kino_magic_box_west_balcony2") == 1)
+        zr_restore_kino_route_flag("magic_box_west_balcony2");
+    if (GetDvarInt("zr_sv_kino_magic_box_west_balcony1") == 1)
+        zr_restore_kino_route_flag("magic_box_west_balcony1");
+
+    if (GetDvarInt("zr_sv_kino_curtains_done") == 1)
+    {
+        zr_set_flag("curtains_done");
+    }
+
+    if (GetDvarInt("zr_sv_kino_teleporter_linked") == 1)
+    {
+        zr_set_flag("core_linked");
+        zr_set_flag("teleporter_linked");
+
+        if (IsDefined(level.link_cable_on) && IsDefined(level.link_cable_off))
+        {
+            level.link_cable_off Hide();
+            level.link_cable_on Show();
+        }
+    }
+
+    println("[T5ZR] Kino world restored: power=" + GetDvar("zr_sv_kino_power") + ", teleporter_linked=" + GetDvar("zr_sv_kino_teleporter_linked") + ".");
+}
+
+zr_restore_world()
+{
+    if (zr_current_map() == "zombie_theater")
+    {
+        zr_restore_kino_world();
+    }
 }
 
 zr_restore_on_spawn()
@@ -489,8 +815,6 @@ zr_restore_on_spawn()
         }
 
         self.zr_restore_attempted = true;
-
-        // Let the stock Zombies starting loadout and perk bookkeeping initialize.
         wait 0.30;
 
         slot = zr_find_saved_slot(self);
@@ -529,9 +853,9 @@ zr_prepare_resume()
         return;
     }
 
-    if (GetDvarInt("zr_sv_format") != 4)
+    if (GetDvarInt("zr_sv_format") != 5)
     {
-        println("[T5ZR] Resume aborted: save format " + GetDvar("zr_sv_format") + " is not v4. Create a new autosave with v0.4.x.");
+        println("[T5ZR] Resume aborted: save format " + GetDvar("zr_sv_format") + " is not v5. Create a new autosave with v0.5.x.");
         SetDvar("zr_resume", "0");
         return;
     }
@@ -563,15 +887,18 @@ zr_prepare_resume()
     level.round_number = saved_round;
     SetDvar("zr_resume", "0");
 
-    println("[T5ZR] Prepared v4 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
+    println("[T5ZR] Prepared v5 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
 
-    wait 0.75;
+    // World restoration is separate from player spawn restoration.
+    level thread zr_restore_world();
+
+    wait 1.25;
     level.zr_suppress_autosave = false;
 }
 
 main()
 {
-    level.zr_mod_version = "0.4.0-rc1";
+    level.zr_mod_version = "0.5.0-beta.1";
     level.zr_pending_resume = false;
     level.zr_suppress_autosave = false;
     level.zr_slot_claimed = [];
@@ -582,29 +909,18 @@ main()
     }
 
     if (GetDvar("zr_save_now") == "")
-    {
         SetDvar("zr_save_now", "0");
-    }
-
     if (GetDvar("zr_status") == "")
-    {
         SetDvar("zr_status", "0");
-    }
-
     if (GetDvar("zr_resume") == "")
-    {
         SetDvar("zr_resume", "0");
-    }
-
     if (GetDvar("zr_clear_save") == "")
-    {
         SetDvar("zr_clear_save", "0");
-    }
 
     level thread zr_watch_round_number();
     level thread zr_watch_controls();
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v4, GUID + perks)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v5, Kino world adapter)");
 }
