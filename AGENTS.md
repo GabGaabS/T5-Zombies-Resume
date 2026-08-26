@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a reliable host-side save/resume layer for BO1 Zombies on Plutonium T5, saving at stable round boundaries and reconstructing gameplay state after a new process/map start.
+Build a reliable host-side save/resume layer for BO1 Zombies on Plutonium T5, saving only at stable round boundaries and reconstructing state after a new process/map start.
 
 ## Non-negotiable safety boundary
 
@@ -15,61 +15,64 @@ Do not implement or suggest:
 - binary patching of `BlackOps.exe` / `BlackOpsMP.exe`;
 - stealth/hiding behavior.
 
-Prefer Plutonium-supported GSC and stock T5 engine/script behavior. Keep the project for private Zombies.
+Use Plutonium-supported GSC behavior only for the active runtime.
 
-## Current architecture (0.3.0-rc1)
+## Current architecture (0.4.0-rc1)
 
-- `src/zombie_resume.gsc` is the runtime script.
-- No external DLL is required.
-- `t5-gsc-utils.dll` must not be treated as a dependency; on the tested T5 r5346 setup it caused a startup failure on `ddl/stats.ddl`.
-- Runtime path: `%localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc`.
-- Save data is stored in archived `zr_sv_*` dvars pre-registered with `seta` in T5 SP/ZM `config.cfg` by `install.ps1`.
-- Save format is v3.
-- Autosave watches `level.round_number` for a forward transition.
-- Player identity is strict native `getGuid()` matching.
-- Player names are metadata only and must never be used as a restore fallback.
-- A saved player slot may be claimed only once in a resumed session.
-- A player entity gets at most one restore attempt, preventing re-application on later respawns.
-- Resume request is currently `set zr_resume 1` followed by `map_restart` on the already loaded saved map.
+- Runtime: `src/zombie_resume.gsc`.
+- Install path: `%localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc`.
+- No external DLL.
+- `t5-gsc-utils.dll` must remain disabled on the tested r5346 setup because it caused an early `ddl/stats.ddl` startup failure.
+- Save format: v4.
+- Persistence: custom `zr_sv_*` dvars pre-registered with `seta` in T5 `players/config.cfg` by `install.ps1`.
+- Autosave: direct observation of `level.round_number` advancing.
+- Resume request: `set zr_resume 1` followed by `map_restart` during the current development UI flow.
+- Player identity: strict engine `GetGuid()` matching; no name fallback.
+- Player snapshot: score, score total, up to three primaries, clip/reserve ammo, selected weapon and active perks.
+- Perk restoration: stock `maps\_zombiemode_perks::give_perk(perk, false)` path.
 
-## Important upstream references
+## Current known-good development evidence
 
-- https://github.com/plutoniummod/t5-scripts
-- https://plutonium.pw/docs/
+Real tests have validated:
 
-Use stock scripts to verify engine methods and Zombies side effects before adding new gameplay state.
+- GSC loading on current Plutonium T5 r5346;
+- no-DLL startup;
+- autosave trigger;
+- archived dvar persistence across a normal full game exit;
+- round/score/weapon/ammo resume.
+
+The 0.4.0-rc1 perk layer still needs its in-game validation pass before promotion to stable.
 
 ## Development rules
 
 1. Never restore halfway through an active round unless a future design proves it safe.
-2. Validate save validity, format, map and round before mutating gameplay state.
-3. Never restore one player's state to another player on an ambiguous identity match. Safe failure is preferred.
-4. Use GUID identity for co-op save slots. Do not reintroduce name fallback.
-5. Restore stock gameplay through stock GSC helpers when those helpers have meaningful side effects.
-6. Add one subsystem at a time, beginning with Kino der Toten.
-7. For every new saved field, document capture timing, restore timing, persistence behavior and possible stock-script races.
-8. Avoid copying full Treyarch stock scripts into this repository.
+2. Validate map and save format before mutating state.
+3. Match players by GUID only. An unmatched player must remain untouched.
+4. Restore each player and saved slot at most once per resumed session.
+5. Prefer stock Zombies functions when a subsystem has side effects.
+6. For perks, do not replace stock `give_perk` with only `SetPerk`; that would skip important setup such as HUD/lifecycle and perk-specific effects.
+7. Restore Mule Kick before rebuilding a third primary weapon.
+8. Add map/world state one subsystem at a time. Do not infer generic behavior for power, doors, Box, teleporters or Easter Eggs.
 9. Keep custom client assets optional; host-only installation is a core goal.
-10. Do not call a release stable until the relevant path has been tested in a real game session.
+10. Do not announce a feature as stable before a real in-game test.
 
-## Current validated behavior
+## Important upstream references
 
-Observed working during r5346 testing:
+- `plutoniummod/t5-scripts`
+- `ZM/Common/maps/_zombiemode_perks.gsc`
+- map-specific Zombies scripts under `ZM/Maps/...`
 
-- GSC loads without the external plugin;
-- visible runtime activation message;
-- autosave when advancing rounds;
-- save data survives a normal full process exit after archived dvars were added;
-- manual resume restores the saved round and basic player state.
+## Next validation task
 
-## Next validation target
+Test v0.4.0-rc1 in a two-player private Zombies session:
 
-Before promoting `0.3.0-rc1` to stable `0.3.0`, run a real co-op resume test with at least two players who intentionally have different points/weapons. Confirm:
+1. give each player different points, weapons and perks;
+2. include Jugger-Nog and preferably Mule Kick/third weapon when available;
+3. create a v4 autosave at a round boundary;
+4. close BO1/Plutonium normally;
+5. relaunch and resume;
+6. confirm each GUID receives only its own snapshot;
+7. confirm perk icons and actual gameplay effects are restored;
+8. capture exact `[T5ZR]` lines for any mismatch.
 
-- each returning GUID gets its own saved slot;
-- no slot can be applied to two players;
-- a player is not restored again on later respawn;
-- a new/unknown GUID remains on stock Zombies state;
-- full-exit persistence still works with the new v3 GUID fields.
-
-Only after that should work expand to perks or map/world state, or to a menu-level `Reprendre la partie` UI.
+Only after that test should work begin on generic equipment or map/world adapters such as power and opened doors.
