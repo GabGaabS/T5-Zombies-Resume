@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.5.0--beta.2-blue)
+![Version](https://img.shields.io/badge/version-0.6.0--beta.1-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,141 +11,151 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.5.0-beta.2` is the version prepared for the first public beta.
+`0.6.0-beta.1` adds the first menu integration on top of the v6 save runtime.
 
-Validated during real Plutonium T5 r5346 testing:
+The save layer already covers:
 
-- no external DLL required;
-- automatic round-boundary saves;
-- save data survives a full BO1/Plutonium restart;
-- round, points, weapons and ammo restoration;
-- perks, including Jugger-Nog's actual gameplay effect;
-- strict per-player restore through `GetGuid()`;
-- Kino der Toten power and permanent opened routes.
-
-Beta.2 fixes two issues found during the Kino beta.1 test:
-
-- the coop scoreboard now restores the networked `kills`, `headshots`, `downs` and `revives` fields as well as the script stat mirrors;
-- the hellhound scheduler is saved/restored, including the next dog round, dog-round count and a dog round that was already queued at the saved boundary.
-
-## What is saved
-
-For up to four players:
-
-- player GUID;
-- current points and total score;
-- scoreboard kills, headshots, downs and revives;
-- Zombies stat/kill-tracker mirrors;
-- up to three primary weapons;
-- clip and reserve ammo;
+- round;
+- points and total score;
+- weapons and clip/reserve ammo;
 - selected weapon;
-- active BO1 Zombies perks.
-
-Session state also includes the hellhound round scheduler when the current map uses stock dog rounds.
-
-On **Kino der Toten**, the world adapter additionally stores:
-
-- power;
-- permanent door/debris route state;
-- stage curtain state;
-- whether the teleporter was fully linked.
-
-Saves are designed around a stable round boundary. T5ZR is not a RAM snapshot.
+- perks;
+- coop scoreboard kills/headshots/downs/revives;
+- strict per-player matching through `GetGuid()`;
+- hellhound scheduler state;
+- Kino power and permanent opened routes;
+- Kino stage curtain and fully-linked teleporter state.
 
 ## Install
 
-Close Plutonium completely, then run from the repository folder:
+Close Plutonium completely, then run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The runtime is installed to:
+This installs the GSC runtime only.
+
+### Optional Resume Game button
+
+To add **T5ZR - RESUME GAME** to the private Zombies lobby:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallMenu
+```
+
+The menu integration is optional because T5 UI overrides can conflict with other menu mods.
+
+The installer:
+
+1. downloads the pinned public `xboxlive_privatelobby.menu` raw asset from Plutonium's `client-raw-assets` repository;
+2. applies the small T5ZR patch locally;
+3. backs up an existing custom lobby menu before replacing it;
+4. writes the generated override to the local T5 `ui` folder.
+
+T5ZR does **not** redistribute Plutonium's full menu asset in this repository.
+
+Remove the T5ZR menu layer and restore the previous menu with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -RemoveMenu
+```
+
+The GSC/save runtime remains installed.
+
+## Using the menu
+
+When a valid v6 save exists and you are the private-lobby host, a new button should appear:
+
+```text
+T5ZR - RESUME GAME
+```
+
+Selecting it:
+
+- chooses the saved map;
+- sets the Zombies gametype;
+- arms `zr_resume`;
+- starts the match.
+
+A normal **Start Match** explicitly clears `zr_resume`, so it starts a fresh game.
+
+The console fallback still works:
+
+```text
+set zr_status 1
+set zr_resume 1
+map_restart
+```
+
+## Save format
+
+0.6.0-beta.1 still uses **save format v6**, so existing v6 saves from 0.5.0-beta.2 remain compatible.
+
+## Install paths
+
+Runtime:
 
 ```text
 %localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Persistent `zr_sv_*` dvars are registered in the T5 Zombies `players/config.cfg`. The installer creates `config.cfg.t5zr.bak` before modifying it for the first time.
-
-### Plutonium r5346
-
-T5ZR does **not** use `t5-gsc-utils.dll`. On the development setup that DLL caused an early `ddl/stats.ddl` startup failure, so users coming from the old prototype should keep it disabled.
-
-## Use
-
-Autosave is automatic when the game advances to the next round:
+Optional generated menu override:
 
 ```text
-T5ZR: sauvegarde OK - prochaine manche X
+%localappdata%\Plutonium\storage\t5\ui\xboxlive_privatelobby.menu
 ```
 
-Check the current save:
+Persistent save dvars:
 
 ```text
-set zr_status 1
+%localappdata%\Plutonium\storage\t5\players\config.cfg
 ```
-
-Resume:
-
-```text
-set zr_resume 1
-map_restart
-```
-
-Manual save:
-
-```text
-set zr_save_now 1
-```
-
-Delete the save:
-
-```text
-set zr_clear_save 1
-```
-
-A proper **Resume Game** menu entry is planned; the beta still uses console controls.
-
-## Save compatibility
-
-Beta.2 uses **save format v6**.
-
-A v5 save from beta.1 is not partially interpreted as v6. After installing beta.2, finish one round to create a fresh v6 snapshot before testing resume.
 
 ## Known limitations
 
 Not currently reconstructed:
 
 - Mystery Box location/history;
-- teleporter cooldown or an in-progress teleport;
-- active traps and temporary powerups;
-- living zombies / mid-round positions;
+- active teleporter cooldown;
+- temporary traps and powerups;
+- living zombies / exact mid-round positions;
 - Easter Egg and sidequest progress;
 - RNG state;
-- map-specific world state outside implemented adapters.
+- full map-specific world state outside implemented adapters.
 
-Other BO1 Zombies maps can still use the player/round layer, but map-specific systems may reset unless an adapter exists.
+The optional menu integration is new in 0.6.0-beta.1 and needs real r5346 validation before being called stable.
+
+## Plutonium r5346
+
+No external DLL is required. The old `t5-gsc-utils.dll` prototype dependency is not used.
 
 ## Reporting a bug
 
-Please include the Plutonium build, map, player count, saved round, expected/actual result and the relevant `[T5ZR]` console lines.
+Please include:
 
-For special-round bugs, `set zr_status 1` now prints the saved dog-round state too.
+- Plutonium build;
+- map;
+- player count;
+- saved round;
+- expected vs. actual result;
+- relevant `[T5ZR]` console lines.
 
-Do not publish full GUIDs, IPs, account tokens or personal filesystem paths.
+For menu bugs, also say whether the button appears and whether a different UI/menu mod is installed.
 
-See [Troubleshooting](docs/troubleshooting.md), [Save format](docs/save-format.md) and [beta test checklist](docs/testing-v0.5.md).
+Do not post full GUIDs, IPs, tokens or personal filesystem paths.
 
 ## Scope and safety
 
-T5 Zombies Resume is intended for **private Plutonium T5 Zombies sessions**. It contains no VAC bypass, anti-cheat evasion, process injection, memory patching or modification of vanilla Steam BO1.
+T5ZR is intended for **private Plutonium T5 Zombies sessions**. It contains no VAC bypass, anti-cheat evasion, process injection or memory patching.
 
 ## Credits
 
-Built from the public BO1/T5 script references in [`plutoniummod/t5-scripts`](https://github.com/plutoniummod/t5-scripts) and validated through real in-game testing.
+Built from public BO1/T5 script references in [`plutoniummod/t5-scripts`](https://github.com/plutoniummod/t5-scripts) and tested in-game.
 
-The project is developed with substantial assistance from **ChatGPT / OpenAI Codex** for research, implementation and review. Features are still tested in-game before being treated as working.
+The optional menu patch is generated locally from Plutonium's public `client-raw-assets` source rather than redistributing that menu file.
+
+Development is substantially assisted by **ChatGPT / OpenAI Codex** for research, implementation and review.
 
 ## License
 
