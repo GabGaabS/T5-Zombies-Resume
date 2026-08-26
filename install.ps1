@@ -10,16 +10,15 @@ if (-not (Test-Path $SourceScript)) {
 $PlutoniumRoot = Join-Path $env:LOCALAPPDATA "Plutonium"
 $PluginDir = Join-Path $PlutoniumRoot "plugins"
 $PluginPath = Join-Path $PluginDir "t5-gsc-utils.dll"
-$PluginUrl = "https://github.alicent.cat/t5-gsc-utils/t5-gsc-utils.dll"
+$DisabledPluginPath = Join-Path $PluginDir "t5-gsc-utils.dll.disabled"
 
 $T5Root = Join-Path $PlutoniumRoot "storage\t5"
 $SpScriptsDir = Join-Path $T5Root "scripts\sp"
 $ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
 $ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
 
-# The current T5 r5346 logs show that scripts directly under scripts\sp are
-# also loaded by the frontend. Keep T5 Zombies Resume under scripts\sp\zom
-# so Plutonium only loads it for the Zombies gametype.
+# T5 r5346 loads generic scripts/sp scripts in the frontend as well.
+# Keep T5 Zombies Resume under scripts\sp\zom so it only loads for Zombies.
 $OldScriptTargets = @(
     (Join-Path $SpScriptsDir "zombie_resume.gsc"),
     (Join-Path (Join-Path $SpScriptsDir "zombie_theater") "zombie_resume.gsc"),
@@ -36,7 +35,6 @@ $OldScriptTargets = @(
 
 Write-Host "[T5ZR] Plutonium root: $PlutoniumRoot"
 
-New-Item -ItemType Directory -Path $PluginDir -Force | Out-Null
 New-Item -ItemType Directory -Path $ZombiesScriptsDir -Force | Out-Null
 
 foreach ($OldCopy in $OldScriptTargets) {
@@ -49,48 +47,33 @@ foreach ($OldCopy in $OldScriptTargets) {
 Copy-Item -Path $SourceScript -Destination $ScriptTarget -Force
 Write-Host "[T5ZR] GSC installe -> $ScriptTarget"
 
-Write-Host "[T5ZR] Telechargement de t5-gsc-utils depuis la source officielle..."
-$TempPlugin = "$PluginPath.download"
+Write-Host ""
+Write-Host "[T5ZR] IMPORTANT r5346 : aucune DLL n'est requise pour cette version."
 
-try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $PluginUrl -OutFile $TempPlugin -UseBasicParsing
-
-    if (-not (Test-Path $TempPlugin)) {
-        throw "Le telechargement n'a cree aucun fichier."
-    }
-
-    $DownloadedSize = (Get-Item $TempPlugin).Length
-    if ($DownloadedSize -lt 1024) {
-        throw "Le fichier telecharge est anormalement petit ($DownloadedSize octets)."
-    }
-
-    Move-Item -Path $TempPlugin -Destination $PluginPath -Force
-    $Hash = (Get-FileHash -Path $PluginPath -Algorithm SHA256).Hash
-
-    Write-Host "[T5ZR] Plugin installe -> $PluginPath"
-    Write-Host "[T5ZR] SHA256: $Hash"
+if (Test-Path $PluginPath) {
+    Write-Warning "t5-gsc-utils.dll est encore actif ici : $PluginPath"
+    Write-Warning "Sur la configuration r5346 testee, cette DLL provoque un crash au demarrage sur ddl/stats.ddl."
+    Write-Host "[T5ZR] Ferme Plutonium puis desactive-la avec :"
+    Write-Host "       Rename-Item `"$PluginPath`" `"t5-gsc-utils.dll.disabled`""
 }
-catch {
-    if (Test-Path $TempPlugin) {
-        Remove-Item $TempPlugin -Force -ErrorAction SilentlyContinue
-    }
-
-    Write-Warning "Telechargement automatique de t5-gsc-utils impossible: $($_.Exception.Message)"
-    Write-Host "[T5ZR] Telecharge-le manuellement ici :"
-    Write-Host "       $PluginUrl"
-    Write-Host "[T5ZR] Puis mets la DLL ici :"
-    Write-Host "       $PluginPath"
-    exit 1
+elseif (Test-Path $DisabledPluginPath) {
+    Write-Host "[T5ZR] t5-gsc-utils est deja desactive : $DisabledPluginPath"
+}
+else {
+    Write-Host "[T5ZR] Aucun t5-gsc-utils actif detecte. C'est correct pour la version native."
 }
 
 Write-Host ""
 Write-Host "[T5ZR] Installation terminee."
-Write-Host "[T5ZR] Fichiers attendus :"
-Write-Host "       $PluginPath"
+Write-Host "[T5ZR] Fichier attendu :"
 Write-Host "       $ScriptTarget"
 Write-Host ""
-Write-Host "[T5ZR] FERME completement Plutonium s'il etait ouvert, puis relance-le."
-Write-Host "[T5ZR] Lance une partie Zombies et cherche dans la console :"
-Write-Host "       [T5ZR] T5 Zombies Resume v0.1.2-dev loaded"
-Write-Host "[T5ZR] Puis teste : zstatus"
+Write-Host "[T5ZR] Lance Kino et cherche :"
+Write-Host "       [T5ZR] T5 Zombies Resume v0.2.0-native-test loaded (native GSC, no DLL)"
+Write-Host ""
+Write-Host "[T5ZR] Commandes de test via dvars console :"
+Write-Host "       set zr_status 1    -> affiche l'etat"
+Write-Host "       set zr_save_now 1  -> sauvegarde manuelle"
+Write-Host "       set zr_resume 1    -> demande une reprise au prochain chargement de la map"
+Write-Host ""
+Write-Host "[T5ZR] L'autosave reste automatique a chaque fin de manche."
