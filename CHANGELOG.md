@@ -1,29 +1,34 @@
 # Changelog
 
+## 0.4.0-rc1 - 2026-08-26
+
+- Save format v4.
+- Save active Zombies perks per GUID-matched player.
+- Recognize the eight standard BO1 Zombies perk identifiers plus their stock `_upgrade` variants.
+- Restore perks through Treyarch's stock `maps\_zombiemode_perks::give_perk` path so gameplay effects, HUD and lifecycle are rebuilt.
+- Restore perks before primary weapons so Mule Kick can precede restoration of a third gun.
+- Archive per-player `perk_count` and up to 16 perk slots in `config.cfg`.
+- Require a fresh v4 autosave; v3 snapshots are intentionally rejected by the v4 resume path.
+- Keep power, doors, Mystery Box, Pack-a-Punch world state and Easter Egg state out of the player snapshot for now.
+
 ## 0.3.0-rc1 - 2026-08-26
 
-- Save format bumped to v3.
-- Player identity is now stored and matched strictly with native `GetGuid()`.
-- Removed player-name fallback during restore to prevent multiple players resolving to the same save slot.
-- Added per-session slot claiming so one saved slot cannot be applied to two connected players.
-- Added one-shot restore guard so a player's snapshot is not re-applied on later respawns.
-- Unknown/new players are left with stock Zombies state instead of inheriting another player's snapshot.
-- Added `zr_clear_save` control.
-- Installer now archives per-player GUID fields and v3 metadata in T5 `config.cfg`.
-- Installer keeps existing save values and only adds missing `seta` entries.
-- Documentation updated for the working GSC-only r5346 path, full-exit persistence, and v3 migration.
+- Save format v3.
+- Match players strictly by engine `GetGuid()`.
+- Remove name fallback to prevent one player's snapshot being applied to another player.
+- Each saved slot can be claimed once per resumed session.
+- Each player entity is restored at most once.
+- Persist GUID fields through archived `zr_sv_*` dvars.
+- Add `set zr_clear_save 1`.
+- Keep the runtime GSC-only with no external DLL.
 
-Known limitation before final `0.3.0`: GUID-safe restore still needs one real multi-player validation pass after the 0.2.x slot-collision bug report.
+## 0.2.x native test - 2026-08-26
 
-## 0.2.1-native-test - 2026-08-26
-
-- Removed dependency on `t5-gsc-utils.dll` after confirming a startup crash on Plutonium T5 r5346.
-- Switched to native GSC dvars for save data.
-- Autosave changed to direct `level.round_number` monitoring.
+- Removed `t5-gsc-utils.dll` after confirming a startup crash on the tested Plutonium T5 r5346 setup.
+- Switched persistence to native dvars.
+- Added installer-managed `seta` archive entries in T5 `players/config.cfg` so custom save dvars survive a normal full process exit.
+- Replaced end-round notify dependency with direct `level.round_number` observation.
 - Added visible in-game save/status messages.
-- Added installer-managed archived `seta` dvars so save data survives a normal full game exit.
-- Full-exit save persistence and manual resume were validated in testing.
-- Player matching by name remained unsafe in co-op and was replaced in v3.
 
 ## 0.1.0 - 2026-08-25
 
@@ -33,4 +38,3 @@ Known limitation before final `0.3.0`: GUID-safe restore still needs one real mu
 - Player matching by GUID with unique-name testing fallback.
 - Round, points, primary weapons, clip/reserve ammo and selected weapon restoration.
 - `zsave`, `zstatus`, `zresume` host console commands.
-- No stock GSC includes in the runtime script; stock score HUD helper resolved dynamically.
