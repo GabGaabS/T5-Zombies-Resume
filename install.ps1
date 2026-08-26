@@ -1,5 +1,6 @@
 param(
-    [switch]$InstallMenu
+    [switch]$InstallMenu,
+    [switch]$RemoveMenu
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,6 +50,42 @@ Write-Host "[T5ZR] T5 Zombies Resume $Version"
 Write-Host "[T5ZR] Plutonium root: $PlutoniumRoot"
 Write-Host "[T5ZR] IMPORTANT : ferme completement Plutonium avant d'executer cet installateur."
 
+if ($InstallMenu -and $RemoveMenu) {
+    Write-Error "Utilise soit -InstallMenu, soit -RemoveMenu, pas les deux."
+}
+
+if ($RemoveMenu) {
+    if (Test-Path $MenuTarget) {
+        $currentMenuText = Get-Content -Path $MenuTarget -Raw -ErrorAction SilentlyContinue
+        if ($null -eq $currentMenuText) {
+            $currentMenuText = ""
+        }
+
+        if ($currentMenuText -match "T5ZR_MENU_OVERRIDE") {
+            Remove-Item $MenuTarget -Force
+            Write-Host "[T5ZR] Menu T5ZR supprime -> $MenuTarget"
+
+            if (Test-Path $MenuBackupPath) {
+                Move-Item -Path $MenuBackupPath -Destination $MenuTarget -Force
+                Write-Host "[T5ZR] Menu precedent restaure -> $MenuTarget"
+            }
+        }
+        else {
+            Write-Warning "Le menu actuellement installe n'est pas celui de T5ZR ; aucune suppression effectuee."
+        }
+    }
+    elseif (Test-Path $MenuBackupPath) {
+        Move-Item -Path $MenuBackupPath -Destination $MenuTarget -Force
+        Write-Host "[T5ZR] Menu precedent restaure -> $MenuTarget"
+    }
+    else {
+        Write-Host "[T5ZR] Aucun menu T5ZR a supprimer."
+    }
+
+    Write-Host "[T5ZR] Suppression du menu terminee. Le runtime GSC n'a pas ete desinstalle."
+    exit 0
+}
+
 New-Item -ItemType Directory -Path $ZombiesScriptsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
 
@@ -93,6 +130,7 @@ if ($InstallMenu) {
 else {
     Write-Host "[T5ZR] Menu Resume non installe (optionnel)."
     Write-Host "[T5ZR] Pour l'ajouter : powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallMenu"
+    Write-Host "[T5ZR] Pour le retirer : powershell -ExecutionPolicy Bypass -File .\install.ps1 -RemoveMenu"
 }
 
 # Custom save dvars need the archive flag to survive a full BO1/Plutonium exit.
