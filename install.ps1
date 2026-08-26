@@ -20,8 +20,8 @@ $SpScriptsDir = Join-Path $T5Root "scripts\sp"
 $ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
 $ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
 
-$Version = "0.5.0-beta.1"
-$SaveFormat = "5"
+$Version = "0.5.0-beta.2"
+$SaveFormat = "6"
 
 $OldScriptTargets = @(
     (Join-Path $SpScriptsDir "zombie_resume.gsc"),
@@ -99,6 +99,13 @@ Ensure-ArchivedDvar "zr_sv_round" "0"
 Ensure-ArchivedDvar "zr_sv_reason" ""
 Ensure-ArchivedDvar "zr_sv_player_count" "0"
 Ensure-ArchivedDvar "zr_sv_world_adapter" "none"
+
+# Special-round scheduler state. These fields preserve BO1's hellhound cycle
+# across a resumed session instead of letting next_dog_round reset to 5-7.
+Ensure-ArchivedDvar "zr_sv_dog_rounds_enabled" "0"
+Ensure-ArchivedDvar "zr_sv_dog_round_active" "0"
+Ensure-ArchivedDvar "zr_sv_dog_round_count" "0"
+Ensure-ArchivedDvar "zr_sv_next_dog_round" "0"
 
 # Kino world adapter (v1): stable round-boundary state only.
 $KinoWorldDefaults = @{
@@ -178,8 +185,8 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] Une ancienne save v4 reste intacte mais ne peut pas etre reprise par v5."
-Write-Host "[T5ZR] Termine au moins une manche avec cette version pour creer une save v5."
+Write-Host "[T5ZR] Une ancienne save v5 reste intacte mais ne peut pas etre reprise par v6."
+Write-Host "[T5ZR] Termine au moins une manche avec cette version pour creer une save v6."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
