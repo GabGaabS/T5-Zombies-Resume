@@ -20,8 +20,9 @@ $SpScriptsDir = Join-Path $T5Root "scripts\sp"
 $ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
 $ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
 
-# T5 r5346 loads generic scripts/sp scripts in the frontend as well.
-# Keep T5 Zombies Resume under scripts\sp\zom so it only loads for Zombies.
+$Version = "0.3.0-rc1"
+$SaveFormat = "3"
+
 $OldScriptTargets = @(
     (Join-Path $SpScriptsDir "zombie_resume.gsc"),
     (Join-Path (Join-Path $SpScriptsDir "zombie_theater") "zombie_resume.gsc"),
@@ -36,6 +37,7 @@ $OldScriptTargets = @(
     (Join-Path (Join-Path $SpScriptsDir "zombie_cod5_factory") "zombie_resume.gsc")
 )
 
+Write-Host "[T5ZR] T5 Zombies Resume $Version"
 Write-Host "[T5ZR] Plutonium root: $PlutoniumRoot"
 Write-Host "[T5ZR] IMPORTANT : ferme completement Plutonium avant d'executer cet installateur."
 
@@ -52,10 +54,8 @@ foreach ($OldCopy in $OldScriptTargets) {
 Copy-Item -Path $SourceScript -Destination $ScriptTarget -Force
 Write-Host "[T5ZR] GSC installe -> $ScriptTarget"
 
-# BO1/T5 does not persist arbitrary script-created dvars across a full process
-# exit. Registering them with `seta` in the T5SP/ZM config gives them the
-# archive flag. The GSC can then update them with SetDvar and T5 writes the
-# latest values back to config.cfg on a normal game exit.
+# Custom save dvars need the archive flag to survive a full BO1/Plutonium exit.
+# Pre-registering them with `seta` in the T5 SP/ZM config gives them that flag.
 if (-not (Test-Path $ConfigPath)) {
     New-Item -ItemType File -Path $ConfigPath -Force | Out-Null
     Write-Host "[T5ZR] config.cfg cree -> $ConfigPath"
@@ -90,16 +90,19 @@ function Ensure-ArchivedDvar {
     }
 }
 
-# Save metadata.
+# Save metadata. Existing values are never overwritten by the installer.
 Ensure-ArchivedDvar "zr_sv_valid" "0"
-Ensure-ArchivedDvar "zr_sv_format" "2"
+Ensure-ArchivedDvar "zr_sv_format" $SaveFormat
+Ensure-ArchivedDvar "zr_sv_mod_version" $Version
 Ensure-ArchivedDvar "zr_sv_map" ""
 Ensure-ArchivedDvar "zr_sv_round" "0"
 Ensure-ArchivedDvar "zr_sv_reason" ""
 Ensure-ArchivedDvar "zr_sv_player_count" "0"
 
-# Up to four co-op players, each with up to three primary weapons.
+# Up to four co-op players, each identified by engine GUID and carrying up to
+# three primary weapons. Name is display/debug metadata only in save format v3.
 for ($p = 0; $p -lt 4; $p++) {
+    Ensure-ArchivedDvar "zr_sv_p${p}_guid" ""
     Ensure-ArchivedDvar "zr_sv_p${p}_name" ""
     Ensure-ArchivedDvar "zr_sv_p${p}_score" "0"
     Ensure-ArchivedDvar "zr_sv_p${p}_score_total" "0"
@@ -117,11 +120,11 @@ Write-Host "[T5ZR] Dvars de sauvegarde archives dans : $ConfigPath"
 if ($script:ArchivedAdded -gt 0) {
     Write-Host "[T5ZR] $($script:ArchivedAdded) entree(s) seta ajoutee(s)."
 } else {
-    Write-Host "[T5ZR] Les entrees seta existaient deja ; aucune sauvegarde existante n'a ete ecrasee."
+    Write-Host "[T5ZR] Toutes les entrees seta existaient deja ; aucune save n'a ete ecrasee."
 }
 
 Write-Host ""
-Write-Host "[T5ZR] IMPORTANT r5346 : aucune DLL n'est requise pour cette version."
+Write-Host "[T5ZR] IMPORTANT r5346 : aucune DLL n'est requise."
 
 if (Test-Path $PluginPath) {
     Write-Warning "t5-gsc-utils.dll est encore actif ici : $PluginPath"
@@ -133,17 +136,20 @@ elseif (Test-Path $DisabledPluginPath) {
     Write-Host "[T5ZR] t5-gsc-utils est deja desactive : $DisabledPluginPath"
 }
 else {
-    Write-Host "[T5ZR] Aucun t5-gsc-utils actif detecte. C'est correct pour la version native."
+    Write-Host "[T5ZR] Aucun t5-gsc-utils actif detecte. C'est correct."
 }
 
 Write-Host ""
 Write-Host "[T5ZR] Installation terminee."
+Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] TEST PERSISTANCE :"
-Write-Host "  1. Lance Kino et termine une manche jusqu'au message 'sauvegarde OK'."
-Write-Host "  2. Quitte BO1/Plutonium normalement par le menu."
-Write-Host "  3. Relance Plutonium, lance Kino, puis console : set zr_status 1"
-Write-Host "  4. Le message doit encore afficher le numero de save precedent."
-Write-Host "  5. Pour reprendre : set zr_resume 1 puis map_restart"
+Write-Host "[T5ZR] IMPORTANT : une ancienne save format v2 ne sera pas restauree."
+Write-Host "[T5ZR] Lance une partie avec $Version et termine au moins une manche pour creer une save v3."
+Write-Host ""
+Write-Host "[T5ZR] Commandes console :"
+Write-Host "       set zr_status 1       -> etat/save"
+Write-Host "       set zr_save_now 1     -> save manuelle"
+Write-Host "       set zr_resume 1       -> armer la reprise, puis map_restart"
+Write-Host "       set zr_clear_save 1   -> effacer la save"
