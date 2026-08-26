@@ -1,48 +1,48 @@
 # Changelog
 
+## 0.6.0-beta.1 - 2026-08-26
+
+- Keep save format v6; v6 saves from 0.5.0-beta.2 remain compatible.
+- Add an optional **T5ZR - RESUME GAME** button to the private Zombies lobby.
+- Resume button is visible only to the private-lobby host with a valid supported v6 save.
+- Resume button selects the saved stock Zombies map, sets `zr_resume=1` and starts the match.
+- Normal **Start Match** clears `zr_resume` to prevent accidental resume.
+- Add `install.ps1 -InstallMenu` for menu integration.
+- Add `install.ps1 -RemoveMenu` to remove T5ZR UI and restore a pre-existing menu backup.
+- Do not redistribute Plutonium's full lobby menu asset; the installer downloads a pinned public upstream raw asset and applies the T5ZR patch locally.
+- Keep the console resume flow as fallback.
+
 ## 0.5.0-beta.2 - 2026-08-26
 
 - Save format v6.
-- Fix coop scoreboard restoration by saving/restoring BO1's networked player fields: `kills`, `headshots`, `downs` and `revives`.
-- Keep the existing `stats[]` and `kill_tracker` mirrors in sync with the restored scoreboard state.
-- Preserve the stock hellhound scheduler: dog rounds enabled, current dog-round flag, dog-round count and `next_dog_round`.
-- Rebuild an already-queued dog round through the stock `_zombiemode_ai_dogs` functions instead of letting the resumed round fall back to a normal round.
-- Add dog scheduler information to `zr_status` output.
-- Add installer archive keys for the new scheduler fields.
-- Require a fresh v6 autosave; beta.1 v5 snapshots are intentionally rejected.
+- Restore BO1 coop scoreboard fields: kills, headshots, downs and revives.
+- Keep networked scoreboard values and Zombies stat mirrors synchronized.
+- Preserve hellhound scheduler state: enabled, active, count and `next_dog_round`.
+- Rebuild an already-queued dog round through the stock dog-round functions.
 
 ## 0.5.0-beta.1 - 2026-08-26
 
 - Save format v5.
-- Persist round stat mirrors: kills, kill tracker, headshots, downs, revives, zombie gibs and perk-consumption counter.
-- Add the first map-specific world adapter for Kino der Toten.
-- Save and restore Kino power state through the stock `power_on` flag path.
-- Save and restore Kino permanent route flags and matching `zombie_door` / `zombie_debris` entities without charging players again.
-- Save and restore the Kino stage curtain completion flag.
-- Preserve a fully-linked Kino teleporter; half-completed linking and cooldown timers intentionally reset.
-- Keep strict GUID player matching, perks, weapons, ammo and points.
+- Add Kino power, permanent route, curtain and fully-linked teleporter world state.
+- Add player stat mirrors.
+- Keep GUID player matching, perks, weapons, ammo and points.
 
 ## 0.4.0-rc1 - 2026-08-26
 
 - Save format v4.
-- Save active Zombies perks per GUID-matched player.
-- Restore perks through Treyarch's stock `maps\_zombiemode_perks::give_perk` path.
-- Restore perks before primary weapons so Mule Kick can precede restoration of a third gun.
+- Add active perk persistence/restoration.
 
 ## 0.3.0-rc1 - 2026-08-26
 
 - Save format v3.
-- Match players strictly by engine `GetGuid()`.
-- Remove name fallback.
-- Each saved slot/player can be restored only once.
-- Add `set zr_clear_save 1`.
+- Strict `GetGuid()` player matching.
+- One restore per player/slot.
 
 ## 0.2.x native test - 2026-08-26
 
-- Removed `t5-gsc-utils.dll` after confirming a startup crash on the tested T5 r5346 setup.
-- Switched persistence to native archived dvars.
-- Replaced the end-round notify dependency with direct `level.round_number` observation.
+- Remove external DLL dependency.
+- Move persistence to archived native dvars.
 
 ## 0.1.0 - 2026-08-25
 
-- Initial experimental host-side save/resume implementation.
+- Initial experimental save/resume implementation.
