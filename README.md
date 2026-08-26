@@ -3,247 +3,188 @@
 > Sauvegarde/reprise host-only pour **Call of Duty: Black Ops (BO1) Zombies** sur **Plutonium T5**.
 
 ![Status](https://img.shields.io/badge/status-release%20candidate-yellow)
-![Version](https://img.shields.io/badge/version-0.3.0--rc1-blue)
+![Version](https://img.shields.io/badge/version-0.4.0--rc1-blue)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Statut actuel
 
-`0.3.0-rc1` est la première release candidate issue des tests réels sur **Plutonium T5 r5346**.
+`0.4.0-rc1` étend la reprise joueur validée sur Plutonium T5 r5346 avec la sauvegarde/restauration des **perks Zombies actifs**.
 
-Validé pendant le développement :
+Déjà validé pendant les tests réels :
 
-- chargement du GSC depuis `scripts\sp\zom` ;
+- chargement automatique du GSC depuis `scripts\sp\zom` ;
 - fonctionnement sans DLL externe ;
 - autosave au passage à la manche suivante ;
-- restauration de la manche, des points, armes et munitions ;
-- persistance de la sauvegarde après fermeture complète de BO1/Plutonium grâce aux dvars archivés dans `config.cfg` ;
-- reprise après relance avec `set zr_resume 1` puis `map_restart`.
+- persistance après fermeture complète de BO1/Plutonium via des dvars archivés dans `config.cfg` ;
+- reprise de la manche ;
+- reprise des points ;
+- reprise des armes principales et munitions ;
+- identification stricte des joueurs par `GetGuid()` pour éviter d'appliquer le snapshot de l'host aux mates.
 
-La `0.2.x` avait encore un défaut coop important : l'identification par nom pouvait faire correspondre plusieurs joueurs au même slot et leur appliquer le même équipement/stats. `0.3.0-rc1` remplace cette logique par une correspondance **strictement par `GetGuid()`**, sans fallback par nom, avec verrouillage des slots et une seule restauration par joueur.
+À valider spécifiquement en `0.4.0-rc1` :
 
-Cette correction doit encore être confirmée par un test coop réel avant de considérer `0.3.0` comme stable.
+- restauration des perks sur plusieurs joueurs ;
+- Jugger-Nog avec sa vie max réelle ;
+- Speed Cola / Double Tap / Quick Revive ;
+- Stamin-Up / PHD Flopper / Deadshot sur les maps qui les exposent ;
+- Mule Kick avec une troisième arme.
 
-Ce projet n'est affilié ni à Activision, Treyarch, Steam, ni à l'équipe Plutonium.
+Le projet reste host-only et ne nécessite pas que les autres joueurs installent un fichier local.
 
----
+## Ce que sauvegarde le format v4
 
-## Architecture
+Pour la session :
 
-La version actuelle est **GSC-only** et host-only.
+- map ;
+- prochaine manche ;
+- nombre de joueurs ;
+- raison de la sauvegarde ;
+- version du mod.
 
-Aucune DLL `t5-gsc-utils` n'est nécessaire. Sur la configuration r5346 utilisée pendant les tests, cette DLL provoquait un crash au démarrage sur `ddl/stats.ddl`, elle doit donc rester désactivée.
+Pour chacun des quatre joueurs maximum :
 
-Runtime :
+- GUID moteur/Plutonium ;
+- nom (debug uniquement) ;
+- points ;
+- score total ;
+- jusqu'à trois armes principales ;
+- munitions chargeur + réserve ;
+- arme sélectionnée ;
+- jusqu'à seize identifiants de perks actifs.
+
+Perks BO1 actuellement reconnus :
+
+- Jugger-Nog — `specialty_armorvest` ;
+- Quick Revive — `specialty_quickrevive` ;
+- Speed Cola — `specialty_fastreload` ;
+- Double Tap — `specialty_rof` ;
+- Stamin-Up — `specialty_longersprint` ;
+- PHD Flopper — `specialty_flakjacket` ;
+- Deadshot Daiquiri — `specialty_deadshot` ;
+- Mule Kick — `specialty_additionalprimaryweapon` ;
+- leurs variantes `_upgrade` définies par le script stock.
+
+La restauration ne pose pas seulement un flag : elle réutilise `maps\_zombiemode_perks::give_perk`, comme les scripts Zombies stock, afin de reconstruire les effets, le HUD et le lifecycle du perk.
+
+## Installation
+
+Ferme complètement Plutonium puis lance depuis la racine du dépôt :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Le script installe :
 
 ```text
 %localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Persistance :
+et pré-enregistre les dvars `zr_sv_*` dans :
 
 ```text
 %localappdata%\Plutonium\storage\t5\players\config.cfg
 ```
 
-`install.ps1` pré-enregistre les clés `zr_sv_*` avec `seta`. Elles conservent ainsi le flag archive et survivent à une fermeture normale du jeu.
+Un backup initial est conservé sous :
 
----
-
-## Installation / mise à jour
-
-Ferme complètement Plutonium, puis depuis la racine du dépôt :
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+```text
+config.cfg.t5zr.bak
 ```
 
-Avec un clone Git :
+### Important pour r5346
 
-```powershell
-git pull
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+`t5-gsc-utils.dll` n'est plus utilisé. Sur la configuration de test r5346, la DLL distribuée provoquait un crash d'initialisation `ddl/stats.ddl`.
+
+Si elle existe encore, garde-la désactivée :
+
+```text
+%localappdata%\Plutonium\plugins\t5-gsc-utils.dll.disabled
 ```
-
-L'installateur :
-
-- copie le GSC au bon emplacement Zombies ;
-- supprime les anciennes copies potentiellement chargées au mauvais endroit ;
-- crée une sauvegarde `config.cfg.t5zr.bak` la première fois ;
-- ajoute les dvars archivés manquants sans écraser les valeurs existantes ;
-- ajoute les nouveaux champs GUID du format v3 ;
-- avertit si `t5-gsc-utils.dll` est encore active.
-
-Si tu utilises un ZIP GitHub, retélécharge le ZIP pour obtenir les nouvelles versions de `install.ps1` et `src\zombie_resume.gsc`.
-
----
-
-## Important : migration depuis 0.2.x
-
-Le format de sauvegarde passe de **v2 à v3**.
-
-Une ancienne save v2 est volontairement refusée, car elle ne contient pas d'identité GUID suffisamment sûre pour la coop.
-
-Après installation de `0.3.0-rc1` :
-
-1. lance une nouvelle partie ;
-2. termine au moins une manche ;
-3. attends le message `T5ZR: sauvegarde OK` ;
-4. cette nouvelle sauvegarde sera au format v3.
-
----
-
-## Ce qui est sauvegardé
-
-À chaque frontière de manche :
-
-- map ;
-- prochaine manche ;
-- jusqu'à 4 joueurs ;
-- GUID moteur/Plutonium de chaque joueur ;
-- nom, uniquement comme métadonnée d'affichage/debug ;
-- points et score total ;
-- jusqu'à 3 armes principales ;
-- munitions chargeur/réserve ;
-- arme sélectionnée.
-
-### Identification coop v3
-
-La restauration fonctionne ainsi :
-
-1. le joueur rejoint la map ;
-2. son `GetGuid()` est lu ;
-3. le mod cherche exactement ce GUID dans les slots sauvegardés ;
-4. le slot est verrouillé dès qu'il est utilisé ;
-5. ce joueur ne peut être restauré qu'une seule fois pendant la reprise.
-
-Si aucun GUID ne correspond, **le joueur garde son état Zombies normal**. Le mod ne tente jamais de lui donner la sauvegarde d'un autre joueur.
-
-Cela signifie aussi qu'un ami différent qui rejoint une ancienne sauvegarde ne récupère pas les armes/points d'un participant précédent.
-
----
-
-## Pas encore sauvegardé
-
-Le projet reconstruit un état de gameplay de haut niveau, pas un snapshot RAM complet.
-
-Ne sont pas encore restaurés :
-
-- perks ;
-- portes/débris ;
-- courant ;
-- Mystery Box ;
-- pièges ;
-- téléporteur/Pack-a-Punch ;
-- quêtes/Easter Eggs ;
-- zombies vivants ;
-- positions exactes ;
-- état RNG ;
-- milieu d'une manche.
-
-La sauvegarde se fait donc à une **frontière de manche stable**.
-
----
 
 ## Utilisation
 
-### Vérifier la sauvegarde
-
-Dans la vraie console du jeu :
-
-```text
-set zr_status 1
-```
-
-### Sauvegarde automatique
-
-Rien à taper. À chaque passage à la manche suivante :
+L'autosave se produit automatiquement quand `level.round_number` passe à la manche suivante. Le jeu affiche :
 
 ```text
 T5ZR: sauvegarde OK - prochaine manche X
 ```
 
-### Sauvegarde manuelle
-
-```text
-set zr_save_now 1
-```
-
-### Reprendre après avoir relancé le jeu
-
-1. lance la même map normalement ;
-2. ouvre la console ;
-3. vérifie éventuellement :
+État de la sauvegarde :
 
 ```text
 set zr_status 1
 ```
 
-4. arme la reprise :
+Sauvegarde manuelle :
+
+```text
+set zr_save_now 1
+```
+
+Reprise, pour l'instant :
 
 ```text
 set zr_resume 1
-```
-
-5. redémarre la map :
-
-```text
 map_restart
 ```
 
-Chaque joueur présent dans la sauvegarde doit récupérer **son propre** snapshot v3 par GUID.
-
-### Effacer la sauvegarde
+Effacer la sauvegarde :
 
 ```text
 set zr_clear_save 1
 ```
 
----
+Une intégration **Reprendre la partie** directement dans les menus est prévue après stabilisation du format joueur/perks.
 
-## Test coop recommandé pour 0.3.0-rc1
+## Migration v3 -> v4
 
-Pour valider définitivement la correction :
+Une sauvegarde v3 ne contient pas les champs de perks. `0.4.0-rc1` exige donc un **nouvel autosave v4** avant de tester une reprise.
 
-1. host + au moins un ami lancent Kino ;
-2. chacun garde des points/armes volontairement différents ;
-3. terminer une manche et attendre `sauvegarde OK` ;
-4. quitter normalement le jeu ;
-5. relancer la même équipe ;
-6. `set zr_resume 1` puis `map_restart` ;
-7. vérifier que chacun récupère ses propres points/armes ;
-8. vérifier qu'aucun équipement n'est recopié d'un joueur à l'autre.
+Cela évite de confondre un snapshot ancien incomplet avec une sauvegarde v4.
 
-Test bonus : reprendre avec un nouveau joueur qui n'était pas dans la sauvegarde. Il doit recevoir son loadout Zombies normal et le message indiquant qu'aucune sauvegarde ne lui est associée.
+## Ce qui n'est pas encore sauvegardé
 
----
+Le format v4 est un snapshot **joueur + manche**, pas encore un snapshot complet de la map.
 
-## Futur menu « Reprendre la partie »
+Restent notamment :
 
-La console sert encore d'interface de développement. Une future couche UI pourra afficher directement dans le menu Zombies une action **Reprendre la partie** avec la map et la manche sauvegardées, puis armer `zr_resume` et charger la map automatiquement.
+- power/courant ;
+- portes, débris et barrières persistantes ;
+- position/état de la Mystery Box ;
+- Pack-a-Punch/téléporteur côté monde ;
+- pièges ;
+- Easter Eggs / quêtes ;
+- zombies vivants ;
+- RNG et état exact d'une manche en cours ;
+- historique spécial de certains perks (par exemple les usages passés de Quick Revive solo ou les flags de perks permanents liés à certains Easter Eggs).
 
-La priorité reste d'abord de stabiliser le runtime coop v3.
+Ces systèmes doivent être ajoutés map par map, car ils ont des effets secondaires propres aux scripts stock.
 
----
+## Protocole de test recommandé pour 0.4.0-rc1
 
-## Sécurité / anti-cheat
+1. installer la version avec Plutonium fermé ;
+2. lancer Kino avec deux joueurs si possible ;
+3. acheter des perks différents entre les joueurs ;
+4. garder aussi des armes/points différents ;
+5. passer une manche et attendre `sauvegarde OK` ;
+6. quitter BO1/Plutonium normalement ;
+7. relancer la même map avec les mêmes comptes ;
+8. vérifier `set zr_status 1` et le format `4` ;
+9. taper `set zr_resume 1`, puis `map_restart` ;
+10. vérifier que chaque GUID retrouve uniquement ses propres points, armes, munitions et perks.
 
-Le projet cible uniquement **Plutonium T5 Zombies en partie privée**.
+Un joueur absent du snapshot garde son état Zombies normal et ne reçoit aucun slot d'un autre joueur.
 
-Il ne contient pas :
+## Sécurité / périmètre
 
-- bypass VAC/anti-cheat ;
-- Cheat Engine ;
-- injection dans le BO1 Steam vanilla ;
-- patch mémoire ou binaire de `BlackOps.exe` ;
-- mécanisme de dissimulation.
+Le projet vise uniquement Plutonium T5 Zombies en partie privée. Il n'implémente aucun bypass VAC, aucune injection dans le BO1 Steam vanilla, aucun patch mémoire et aucun mécanisme d'évasion anti-cheat.
 
-Aucun mod tiers ne peut garantir un risque absolu de zéro vis-à-vis de futures politiques de plateforme. N'utilise pas ce projet pour le multijoueur vanilla Steam.
+## Références de développement
 
----
-
-## Développement
-
-Les scripts T5 de référence utilisés pendant le développement sont ceux du dépôt public `plutoniummod/t5-scripts`. Les changements ne sont considérés stables qu'après validation réelle en jeu.
-
-Le fichier `AGENTS.md` contient les règles du dépôt pour les contributions humaines/IA.
+- scripts T5 stock : `plutoniummod/t5-scripts` ;
+- perks stock : `ZM/Common/maps/_zombiemode_perks.gsc` ;
+- runtime du projet : `src/zombie_resume.gsc` ;
+- format persistant : `docs/save-format.md` ;
+- dépannage : `docs/troubleshooting.md`.
