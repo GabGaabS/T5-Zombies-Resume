@@ -1,7 +1,12 @@
+param(
+    [switch]$InstallMenu
+)
+
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SourceScript = Join-Path $RepoRoot "src\zombie_resume.gsc"
+$SourceMenu = Join-Path $RepoRoot "ui\xboxlive_privatelobby.menu"
 
 if (-not (Test-Path $SourceScript)) {
     Write-Error "Impossible de trouver src\zombie_resume.gsc. Lance install.ps1 depuis le depot complet."
@@ -19,8 +24,11 @@ $ConfigBackupPath = Join-Path $PlayersDir "config.cfg.t5zr.bak"
 $SpScriptsDir = Join-Path $T5Root "scripts\sp"
 $ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
 $ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
+$UiDir = Join-Path $T5Root "ui"
+$MenuTarget = Join-Path $UiDir "xboxlive_privatelobby.menu"
+$MenuBackupPath = Join-Path $UiDir "xboxlive_privatelobby.menu.t5zr.preexisting.bak"
 
-$Version = "0.5.0-beta.2"
+$Version = "0.6.0-beta.1"
 $SaveFormat = "6"
 
 $OldScriptTargets = @(
@@ -53,6 +61,39 @@ foreach ($OldCopy in $OldScriptTargets) {
 
 Copy-Item -Path $SourceScript -Destination $ScriptTarget -Force
 Write-Host "[T5ZR] GSC installe -> $ScriptTarget"
+
+if ($InstallMenu) {
+    if (-not (Test-Path $SourceMenu)) {
+        Write-Error "Impossible de trouver ui\xboxlive_privatelobby.menu. Utilise le depot complet pour -InstallMenu."
+    }
+
+    New-Item -ItemType Directory -Path $UiDir -Force | Out-Null
+
+    if (Test-Path $MenuTarget) {
+        $existingMenuText = Get-Content -Path $MenuTarget -Raw -ErrorAction SilentlyContinue
+        if ($null -eq $existingMenuText) {
+            $existingMenuText = ""
+        }
+
+        if ($existingMenuText -notmatch "T5ZR_MENU_OVERRIDE") {
+            if (-not (Test-Path $MenuBackupPath)) {
+                Copy-Item -Path $MenuTarget -Destination $MenuBackupPath -Force
+                Write-Host "[T5ZR] Backup menu existant -> $MenuBackupPath"
+            }
+            else {
+                Write-Warning "Un menu custom non-T5ZR existe deja et un backup T5ZR existe aussi."
+                Write-Warning "Le fichier actuel sera remplace car -InstallMenu a ete demande explicitement."
+            }
+        }
+    }
+
+    Copy-Item -Path $SourceMenu -Destination $MenuTarget -Force
+    Write-Host "[T5ZR] Menu Resume installe -> $MenuTarget"
+}
+else {
+    Write-Host "[T5ZR] Menu Resume non installe (optionnel)."
+    Write-Host "[T5ZR] Pour l'ajouter : powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallMenu"
+}
 
 # Custom save dvars need the archive flag to survive a full BO1/Plutonium exit.
 # Registering them with `seta` in the T5 SP/ZM config gives them that flag.
@@ -185,11 +226,15 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] Une ancienne save v5 reste intacte mais ne peut pas etre reprise par v6."
-Write-Host "[T5ZR] Termine au moins une manche avec cette version pour creer une save v6."
+Write-Host "[T5ZR] Save format : v6 (compatible avec les saves v6 de 0.5.0-beta.2)."
+Write-Host "[T5ZR] Le menu optionnel utilise directement la save v6 existante."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
 Write-Host "       set zr_save_now 1     -> save manuelle"
 Write-Host "       set zr_resume 1       -> armer la reprise, puis map_restart"
 Write-Host "       set zr_clear_save 1   -> effacer la save"
+if ($InstallMenu) {
+    Write-Host ""
+    Write-Host "[T5ZR] Dans le lobby prive, utilise : T5ZR - RESUME GAME"
+}
