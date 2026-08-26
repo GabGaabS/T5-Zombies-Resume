@@ -2,12 +2,13 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.3.0-rc1
-// - save format v3
-// - players matched strictly by engine GetGuid()
-// - no name fallback (prevents one player's snapshot being applied to another)
-// - each saved slot can be claimed once per resumed session
-// - each player entity can be restored at most once
+// v0.4.0-rc1
+// - save format v4
+// - strict player matching by engine GetGuid()
+// - round, score, primary weapons and ammo
+// - active Zombies perks restored through stock _zombiemode_perks::give_perk
+// - perks restored before weapons so Mule Kick can safely precede a third gun
+// - each saved slot and player can be restored only once per resumed session
 // - persistent zr_sv_* dvars are archived by install.ps1
 
 zr_current_map()
@@ -39,7 +40,7 @@ zr_store(key, value)
 {
     // install.ps1 pre-registers zr_sv_* through `seta`, giving the dvars the
     // archive flag. SetDvar updates the live archived value. SetSavedDvar is
-    // also kept because it is native T5 and was validated by the 0.2.x tests.
+    // also kept because it is a native T5 builtin validated by the 0.2.x tests.
     SetDvar(key, value);
     SetSavedDvar(key, value);
 }
@@ -66,11 +67,26 @@ zr_weapon_key(slot, weapon_slot, suffix)
     return "zr_sv_p" + slot + "_w" + weapon_slot + "_" + suffix;
 }
 
+zr_perk_key(slot, perk_slot)
+{
+    return "zr_sv_p" + slot + "_perk" + perk_slot;
+}
+
 zr_clear_saved_weapon(slot, weapon_slot)
 {
     zr_store(zr_weapon_key(slot, weapon_slot, "name"), "");
     zr_store(zr_weapon_key(slot, weapon_slot, "clip"), "0");
     zr_store(zr_weapon_key(slot, weapon_slot, "stock"), "0");
+}
+
+zr_clear_saved_perks(slot)
+{
+    zr_store(zr_player_key(slot, "perk_count"), "0");
+
+    for (p = 0; p < 16; p++)
+    {
+        zr_store(zr_perk_key(slot, p), "");
+    }
 }
 
 zr_clear_saved_player(slot)
@@ -81,6 +97,7 @@ zr_clear_saved_player(slot)
     zr_store(zr_player_key(slot, "score_total"), "0");
     zr_store(zr_player_key(slot, "current_weapon"), "none");
     zr_store(zr_player_key(slot, "weapon_count"), "0");
+    zr_clear_saved_perks(slot);
 
     for (w = 0; w < 3; w++)
     {
@@ -91,7 +108,7 @@ zr_clear_saved_player(slot)
 zr_clear_save()
 {
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "3");
+    zr_store("zr_sv_format", "4");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", "");
     zr_store("zr_sv_round", "0");
@@ -105,6 +122,56 @@ zr_clear_save()
 
     println("[T5ZR] Save cleared.");
     zr_show_message("^2T5ZR:^7 sauvegarde effacee");
+}
+
+zr_save_perk_if_present(slot, player, perk, perk_count)
+{
+    if (perk_count >= 16)
+    {
+        return perk_count;
+    }
+
+    if (player HasPerk(perk))
+    {
+        zr_store(zr_perk_key(slot, perk_count), perk);
+        return perk_count + 1;
+    }
+
+    return perk_count;
+}
+
+zr_save_player_perks(slot, player)
+{
+    perk_count = 0;
+
+    // Base BO1 Zombies perks.
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_armorvest", perk_count);                 // Jugger-Nog
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_quickrevive", perk_count);              // Quick Revive
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_fastreload", perk_count);               // Speed Cola
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_rof", perk_count);                      // Double Tap
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_longersprint", perk_count);             // Stamin-Up
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_flakjacket", perk_count);               // PHD Flopper
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_deadshot", perk_count);                 // Deadshot Daiquiri
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_additionalprimaryweapon", perk_count);  // Mule Kick
+
+    // The stock perk script also defines upgrade variants. They are uncommon
+    // in normal BO1 Zombies but saving them costs little and avoids silently
+    // dropping one if a map/mutator exposes it.
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_armorvest_upgrade", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_quickrevive_upgrade", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_fastreload_upgrade", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_rof_upgrade", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_longersprint_upgrade", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_flakjacket_upgrade", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_deadshot_upgrade", perk_count);
+    perk_count = zr_save_perk_if_present(slot, player, "specialty_additionalprimaryweapon_upgrade", perk_count);
+
+    zr_store(zr_player_key(slot, "perk_count"), "" + perk_count);
+
+    for (p = perk_count; p < 16; p++)
+    {
+        zr_store(zr_perk_key(slot, p), "");
+    }
 }
 
 zr_save_player(slot, player)
@@ -126,6 +193,7 @@ zr_save_player(slot, player)
     zr_store(zr_player_key(slot, "score_total"), "" + total);
     zr_store(zr_player_key(slot, "current_weapon"), player GetCurrentWeapon());
     zr_store(zr_player_key(slot, "weapon_count"), "" + weapon_count);
+    zr_save_player_perks(slot, player);
 
     if (guid == "" || guid == "0")
     {
@@ -167,7 +235,7 @@ zr_save_game(reason)
 
     // Invalidate first so a partial write is never considered resumable.
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "3");
+    zr_store("zr_sv_format", "4");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", zr_current_map());
     zr_store("zr_sv_round", "" + level.round_number);
@@ -266,8 +334,7 @@ zr_find_saved_slot(player)
 {
     guid = zr_player_guid(player);
 
-    // Safety rule: never fall back to player.name. In 0.2.x an empty or
-    // ambiguous name could make several players resolve to slot 0.
+    // Safety rule: never fall back to player.name.
     if (guid == "" || guid == "0")
     {
         return -1;
@@ -298,10 +365,61 @@ zr_find_saved_slot(player)
     return -1;
 }
 
+zr_restore_player_perks(slot)
+{
+    perk_count = GetDvarInt(zr_player_key(slot, "perk_count"));
+
+    if (perk_count < 0)
+    {
+        perk_count = 0;
+    }
+
+    if (perk_count > 16)
+    {
+        perk_count = 16;
+    }
+
+    if (!IsDefined(self.num_perks))
+    {
+        self.num_perks = 0;
+    }
+
+    restored = 0;
+
+    for (p = 0; p < perk_count; p++)
+    {
+        perk = GetDvar(zr_perk_key(slot, p));
+
+        if (perk == "")
+        {
+            continue;
+        }
+
+        if (self HasPerk(perk))
+        {
+            continue;
+        }
+
+        // Reuse Treyarch's stock Zombies path. This applies the actual perk,
+        // HUD/icon, perk_think lifecycle and perk-specific side effects such as
+        // Jugger-Nog max health and Deadshot's client flag. Passing false avoids
+        // purchase VO while keeping the gameplay setup.
+        self maps\_zombiemode_perks::give_perk(perk, false);
+        restored++;
+        wait 0.05;
+    }
+
+    println("[T5ZR] Restored " + restored + " perk(s) for " + self.name + ".");
+}
+
 zr_restore_player_slot(slot)
 {
     level.zr_slot_claimed[slot] = true;
     self.zr_restore_applied = true;
+
+    // Restore perks before weapons. Mule Kick must exist before a possible
+    // third primary is rebuilt.
+    self zr_restore_player_perks(slot);
 
     self.score = GetDvarInt(zr_player_key(slot, "score"));
     self.score_total = GetDvarInt(zr_player_key(slot, "score_total"));
@@ -365,8 +483,6 @@ zr_restore_on_spawn()
             continue;
         }
 
-        // One resume attempt per player entity prevents the same snapshot from
-        // being re-applied on a later respawn/down cycle.
         if (IsDefined(self.zr_restore_attempted) && self.zr_restore_attempted)
         {
             continue;
@@ -374,8 +490,8 @@ zr_restore_on_spawn()
 
         self.zr_restore_attempted = true;
 
-        // Let the stock Zombies starting loadout finish first.
-        wait 0.25;
+        // Let the stock Zombies starting loadout and perk bookkeeping initialize.
+        wait 0.30;
 
         slot = zr_find_saved_slot(self);
 
@@ -413,9 +529,9 @@ zr_prepare_resume()
         return;
     }
 
-    if (GetDvarInt("zr_sv_format") != 3)
+    if (GetDvarInt("zr_sv_format") != 4)
     {
-        println("[T5ZR] Resume aborted: save format " + GetDvar("zr_sv_format") + " is not v3. Create a new autosave with v0.3.x.");
+        println("[T5ZR] Resume aborted: save format " + GetDvar("zr_sv_format") + " is not v4. Create a new autosave with v0.4.x.");
         SetDvar("zr_resume", "0");
         return;
     }
@@ -447,17 +563,15 @@ zr_prepare_resume()
     level.round_number = saved_round;
     SetDvar("zr_resume", "0");
 
-    println("[T5ZR] Prepared v3 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
+    println("[T5ZR] Prepared v4 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
 
-    // Let the round watcher observe the restored value without immediately
-    // overwriting the persisted snapshot with stock starting loadouts.
     wait 0.75;
     level.zr_suppress_autosave = false;
 }
 
 main()
 {
-    level.zr_mod_version = "0.3.0-rc1";
+    level.zr_mod_version = "0.4.0-rc1";
     level.zr_pending_resume = false;
     level.zr_suppress_autosave = false;
     level.zr_slot_claimed = [];
@@ -467,7 +581,6 @@ main()
         level.zr_slot_claimed[i] = false;
     }
 
-    // Console control dvars. Use these in the real in-game console, not chat.
     if (GetDvar("zr_save_now") == "")
     {
         SetDvar("zr_save_now", "0");
@@ -493,5 +606,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v3, GUID player matching)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v4, GUID + perks)");
 }
