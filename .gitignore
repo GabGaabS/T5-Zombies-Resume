@@ -1,6 +1,9 @@
-# Local test saves / logs
-zombie_resume/
+# Local logs / test output
 *.log
+*.tmp
+
+# Local config backups or exports
+*.bak
 
 # Editor / OS
 .vscode/
