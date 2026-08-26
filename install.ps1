@@ -20,8 +20,8 @@ $SpScriptsDir = Join-Path $T5Root "scripts\sp"
 $ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
 $ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
 
-$Version = "0.3.0-rc1"
-$SaveFormat = "3"
+$Version = "0.4.0-rc1"
+$SaveFormat = "4"
 
 $OldScriptTargets = @(
     (Join-Path $SpScriptsDir "zombie_resume.gsc"),
@@ -99,8 +99,8 @@ Ensure-ArchivedDvar "zr_sv_round" "0"
 Ensure-ArchivedDvar "zr_sv_reason" ""
 Ensure-ArchivedDvar "zr_sv_player_count" "0"
 
-# Up to four co-op players, each identified by engine GUID and carrying up to
-# three primary weapons. Name is display/debug metadata only in save format v3.
+# Up to four co-op players, each identified by engine GUID, carrying up to
+# three primary weapons and up to sixteen known perk identifiers.
 for ($p = 0; $p -lt 4; $p++) {
     Ensure-ArchivedDvar "zr_sv_p${p}_guid" ""
     Ensure-ArchivedDvar "zr_sv_p${p}_name" ""
@@ -108,11 +108,16 @@ for ($p = 0; $p -lt 4; $p++) {
     Ensure-ArchivedDvar "zr_sv_p${p}_score_total" "0"
     Ensure-ArchivedDvar "zr_sv_p${p}_current_weapon" "none"
     Ensure-ArchivedDvar "zr_sv_p${p}_weapon_count" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_perk_count" "0"
 
     for ($w = 0; $w -lt 3; $w++) {
         Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_name" ""
         Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_clip" "0"
         Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_stock" "0"
+    }
+
+    for ($perk = 0; $perk -lt 16; $perk++) {
+        Ensure-ArchivedDvar "zr_sv_p${p}_perk${perk}" ""
     }
 }
 
@@ -145,8 +150,8 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] IMPORTANT : une ancienne save format v2 ne sera pas restauree."
-Write-Host "[T5ZR] Lance une partie avec $Version et termine au moins une manche pour creer une save v3."
+Write-Host "[T5ZR] IMPORTANT : une ancienne save format v3 ne sera pas restauree par v4."
+Write-Host "[T5ZR] Lance une partie avec $Version et termine au moins une manche pour creer une save v4 avec perks."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
