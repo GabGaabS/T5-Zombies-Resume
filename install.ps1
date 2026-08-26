@@ -7,7 +7,11 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SourceScript = Join-Path $RepoRoot "src\zombie_resume.gsc"
-$SourceMenu = Join-Path $RepoRoot "ui\xboxlive_privatelobby.menu"
+
+# Menu integration is generated locally from Plutonium's public raw asset.
+# The full upstream menu is intentionally not redistributed by this repository.
+$MenuUpstreamCommit = "7a6614b183c4b432ca9babcc045b554a4cbb710a"
+$MenuUpstreamUrl = "https://raw.githubusercontent.com/plutoniummod/client-raw-assets/$MenuUpstreamCommit/t5/ui/xboxlive_privatelobby.menu"
 
 if (-not (Test-Path $SourceScript)) {
     Write-Error "Impossible de trouver src\zombie_resume.gsc. Lance install.ps1 depuis le depot complet."
@@ -99,11 +103,98 @@ foreach ($OldCopy in $OldScriptTargets) {
 Copy-Item -Path $SourceScript -Destination $ScriptTarget -Force
 Write-Host "[T5ZR] GSC installe -> $ScriptTarget"
 
-if ($InstallMenu) {
-    if (-not (Test-Path $SourceMenu)) {
-        Write-Error "Impossible de trouver ui\xboxlive_privatelobby.menu. Utilise le depot complet pour -InstallMenu."
-    }
+function Build-T5ZRMenuOverride {
+    param(
+        [Parameter(Mandatory = $true)][string]$BaseMenu
+    )
 
+    $menu = $BaseMenu -replace "`r`n", "`n"
+
+    $startMacro = @'
+#define SETUP_ACTION_STARTMATCH_CHEATS \
+				exec "xpartygo";
+'@
+
+    $startReplacement = @'
+#define SETUP_ACTION_STARTMATCH_CHEATS \
+				exec "set zr_resume 0"; \
+				exec "xpartygo";
+
+		#define SETUP_ACTION_T5ZR_RESUME \
+				if( dvarString( zr_sv_map ) == "zombie_theater" ) { setdvar ui_mapname "zombie_theater"; } \
+				if( dvarString( zr_sv_map ) == "zombie_pentagon" ) { setdvar ui_mapname "zombie_pentagon"; } \
+				if( dvarString( zr_sv_map ) == "zombie_cosmodrome" ) { setdvar ui_mapname "zombie_cosmodrome"; } \
+				if( dvarString( zr_sv_map ) == "zombie_coast" ) { setdvar ui_mapname "zombie_coast"; } \
+				if( dvarString( zr_sv_map ) == "zombie_temple" ) { setdvar ui_mapname "zombie_temple"; } \
+				if( dvarString( zr_sv_map ) == "zombie_moon" ) { setdvar ui_mapname "zombie_moon"; } \
+				if( dvarString( zr_sv_map ) == "zombie_cod5_prototype" ) { setdvar ui_mapname "zombie_cod5_prototype"; } \
+				if( dvarString( zr_sv_map ) == "zombie_cod5_asylum" ) { setdvar ui_mapname "zombie_cod5_asylum"; } \
+				if( dvarString( zr_sv_map ) == "zombie_cod5_sumpf" ) { setdvar ui_mapname "zombie_cod5_sumpf"; } \
+				if( dvarString( zr_sv_map ) == "zombie_cod5_factory" ) { setdvar ui_mapname "zombie_cod5_factory"; } \
+				setdvar ui_gametype "zom"; \
+				setdvar zr_resume "1"; \
+				exec "xpartygo";
+'@
+
+    if (-not $menu.Contains($startMacro)) {
+        throw "Le menu Plutonium upstream ne correspond pas au template T5ZR attendu (start macro)."
+    }
+    $menu = $menu.Replace($startMacro, $startReplacement)
+
+    $hostMacros = @'
+		#define IS_LOBBY_HOST		( gameHost() && inLobby() && dvarBool( xblive_privatematch ) )
+		#define IS_NOT_LOBBY_HOST	( !gameHost() || !inLobby() || !dvarBool( xblive_privatematch ) )
+'@
+
+    $hostReplacement = @'
+		#define IS_LOBBY_HOST		( gameHost() && inLobby() && dvarBool( xblive_privatematch ) )
+		#define IS_NOT_LOBBY_HOST	( !gameHost() || !inLobby() || !dvarBool( xblive_privatematch ) )
+		#define T5ZR_SUPPORTED_SAVE_MAP ( \
+			dvarString( zr_sv_map ) == "zombie_theater" || \
+			dvarString( zr_sv_map ) == "zombie_pentagon" || \
+			dvarString( zr_sv_map ) == "zombie_cosmodrome" || \
+			dvarString( zr_sv_map ) == "zombie_coast" || \
+			dvarString( zr_sv_map ) == "zombie_temple" || \
+			dvarString( zr_sv_map ) == "zombie_moon" || \
+			dvarString( zr_sv_map ) == "zombie_cod5_prototype" || \
+			dvarString( zr_sv_map ) == "zombie_cod5_asylum" || \
+			dvarString( zr_sv_map ) == "zombie_cod5_sumpf" || \
+			dvarString( zr_sv_map ) == "zombie_cod5_factory" )
+		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && dvarInt( zr_sv_format ) == 6 && T5ZR_SUPPORTED_SAVE_MAP )
+'@
+
+    if (-not $menu.Contains($hostMacros)) {
+        throw "Le menu Plutonium upstream ne correspond pas au template T5ZR attendu (host macros)."
+    }
+    $menu = $menu.Replace($hostMacros, $hostReplacement)
+
+    $minPlayersBlock = @'
+		FRAME_CHOICE_DVARFLOATLIST_FOCUS_VIS(	3, "@PLUTONIUM_MENU_MINPLAYERS_CAPS",
+												sp_minplayers,
+												{ "1" 1 "2" 2 "3" 3 "4" 4 },
+												;,
+												exec set ui_hint_text "@PLUTONIUM_MENU_MINPLAYERS_HINT"; exec set ui_show_arrow 1;,
+												CLEARUIHINT, IS_LOBBY_HOST && dvarBool( com_useRawUDP ) )
+'@
+
+    $resumeButton = $minPlayersBlock + @'
+
+		TEMP_CHOICE_BUTTON_FOCUS_VIS(	4, "T5ZR - RESUME GAME",
+										SETUP_ACTION_T5ZR_RESUME,
+										exec set ui_hint_text "Resume the saved T5ZR Zombies session"; exec set ui_show_arrow 1;,
+										CLEARUIHINT,
+										T5ZR_CAN_RESUME )
+'@
+
+    if (-not $menu.Contains($minPlayersBlock)) {
+        throw "Le menu Plutonium upstream ne correspond pas au template T5ZR attendu (button anchor)."
+    }
+    $menu = $menu.Replace($minPlayersBlock, $resumeButton)
+
+    return "// T5ZR_MENU_OVERRIDE v0.6.0-beta.1 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+}
+
+if ($InstallMenu) {
     New-Item -ItemType Directory -Path $UiDir -Force | Out-Null
 
     if (Test-Path $MenuTarget) {
@@ -124,8 +215,18 @@ if ($InstallMenu) {
         }
     }
 
-    Copy-Item -Path $SourceMenu -Destination $MenuTarget -Force
-    Write-Host "[T5ZR] Menu Resume installe -> $MenuTarget"
+    Write-Host "[T5ZR] Telechargement du menu officiel Plutonium (source publique)..."
+    try {
+        $response = Invoke-WebRequest -Uri $MenuUpstreamUrl -UseBasicParsing
+        $baseMenu = $response.Content
+    }
+    catch {
+        Write-Error "Impossible de telecharger le menu Plutonium depuis $MenuUpstreamUrl : $($_.Exception.Message)"
+    }
+
+    $patchedMenu = Build-T5ZRMenuOverride -BaseMenu $baseMenu
+    Set-Content -Path $MenuTarget -Value $patchedMenu -Encoding UTF8
+    Write-Host "[T5ZR] Menu Resume genere et installe -> $MenuTarget"
 }
 else {
     Write-Host "[T5ZR] Menu Resume non installe (optionnel)."
