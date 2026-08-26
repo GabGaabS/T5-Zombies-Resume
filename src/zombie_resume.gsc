@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.5.0-beta.2 / save format v6
+// v0.6.0-beta.1 / save format v6
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -1003,7 +1003,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.5.0-beta.2";
+    level.zr_mod_version = "0.6.0-beta.1";
     level.zr_pending_resume = false;
     level.zr_suppress_autosave = false;
     level.zr_slot_claimed = [];
