@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.7.0-beta.1 / save format v7
+// v0.7.0-beta.2 / save format v7
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -13,6 +13,7 @@
 // - Bowie/melee + tactical grenade state (including cymbal monkeys)
 // - optional corner HUD: round time, total run time and zombies remaining
 // - compact autosave toast at the top-center of the screen
+// - backward-compatible reader for legacy save formats v5 and v6
 //
 // Saves are intentionally made at round boundaries. Mid-round zombies, active
 // powerups, temporary trap/cooldown timers and RNG are not snapshots.
@@ -919,7 +920,12 @@ zr_restore_player_slot(slot)
         self SetWeaponAmmoStock(weapon, GetDvarInt(zr_weapon_key(slot, i, "stock")));
     }
 
-    self zr_restore_player_offhand(slot);
+    // Melee/tactical fields were introduced in v7. Never consume stale
+    // archived values when resuming a legacy v5/v6 snapshot.
+    if (IsDefined(level.zr_resume_save_format) && level.zr_resume_save_format >= 7)
+    {
+        self zr_restore_player_offhand(slot);
+    }
 
     current = GetDvar(zr_player_key(slot, "current_weapon"));
 
@@ -1257,7 +1263,7 @@ zr_prepare_resume()
 
     save_format = GetDvarInt("zr_sv_format");
 
-    if (save_format != 6 && save_format != 7)
+    if (save_format != 5 && save_format != 6 && save_format != 7)
     {
         println("[T5ZR] Resume aborted: unsupported save format " + GetDvar("zr_sv_format") + ".");
         SetDvar("zr_resume", "0");
@@ -1282,6 +1288,7 @@ zr_prepare_resume()
 
     level.zr_pending_resume = true;
     level.zr_suppress_autosave = true;
+    level.zr_resume_save_format = save_format;
 
     if (save_format >= 7)
     {
@@ -1301,13 +1308,30 @@ zr_prepare_resume()
 
     level.round_number = saved_round;
 
-    // Restore special-round scheduling before normal gameplay has a chance to
-    // consume the resumed round.
-    zr_restore_round_scheduler();
+    // Dog scheduler fields were introduced in v6. A v5 snapshot must keep
+    // stock scheduling rather than accidentally consuming stale archived v6/v7
+    // values that may still exist in config.cfg.
+    if (save_format >= 6)
+    {
+        zr_restore_round_scheduler();
+    }
+    else
+    {
+        println("[T5ZR] Legacy v5 resume: using stock hellhound scheduler.");
+    }
 
     SetDvar("zr_resume", "0");
 
     println("[T5ZR] Prepared v" + save_format + " resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
+
+    if (save_format == 5)
+    {
+        println("[T5ZR] Legacy v5 compatibility: no saved dog scheduler, total run time or offhand state; next autosave migrates to v7.");
+    }
+    else if (save_format == 6)
+    {
+        println("[T5ZR] Legacy v6 compatibility: no saved total run time or offhand state; next autosave migrates to v7.");
+    }
 
     // World restoration is separate from player spawn restoration.
     level thread zr_restore_world();
@@ -1318,8 +1342,9 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.7.0-beta.1";
+    level.zr_mod_version = "0.7.0-beta.2";
     level.zr_pending_resume = false;
+    level.zr_resume_save_format = 7;
     level.zr_suppress_autosave = false;
     level.zr_total_time_base_seconds = 0;
     level.zr_session_start_time = 0;
