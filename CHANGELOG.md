@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-beta.1 - 2026-08-27
+
+- Save format v8; v5/v6/v7 saves remain readable and migrate on the next autosave.
+- Add multi-level Pack-a-Punch on the stock PAP machine for already-upgraded supported firearms.
+- Default maximum is PAP 5.
+- Default extra costs are 7500, 10000, 12500 and 15000 points for PAP 2-5.
+- Default per-extra-level scaling is +20% firearm damage, +15% effective clip and +20% reserve.
+- Register a stock Zombies damage callback and apply only the bonus damage, suppressing duplicate score/effect processing for the nested damage event.
+- Refill the effective enlarged magazine after native reloads by moving the extra rounds from reserve.
+- Persist the PAP level per saved primary weapon.
+- Add archived multi-PAP tuning dvars.
+- Exclude script-heavy/explosive special weapons from the first multi-PAP beta.
+- Allow the optional Resume Game menu for v8 saves.
+
 ## 0.7.0-beta.2 - 2026-08-27
 
 - Add backward-compatible resume for save format v5.
