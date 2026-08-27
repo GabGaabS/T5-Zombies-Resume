@@ -1,22 +1,23 @@
-# Save format v7
+# Save format v8
 
 T5 Zombies Resume writes one host-side round-boundary snapshot in archived `zr_sv_*` dvars. A save becomes valid only after all session, scheduler, world and player fields have been written.
 
-The current runtime writes **v7** and can read **v5, v6 and v7**.
+The current runtime writes **v8** and can read **v5, v6, v7 and v8**.
 
 ## Compatibility matrix
 
-| Field group | v5 | v6 | v7 |
-| --- | --- | --- | --- |
-| Round / map / player GUIDs | yes | yes | yes |
-| Points / stats / primaries / ammo | yes | yes | yes |
-| Perks | yes | yes | yes |
-| Kino world adapter | yes | yes | yes |
-| Hellhound scheduler | no | yes | yes |
-| Persistent total run time | no | no | yes |
-| Melee / tactical state (Bowie, monkeys) | no | no | yes |
+| Field group | v5 | v6 | v7 | v8 |
+| --- | --- | --- | --- | --- |
+| Round / map / player GUIDs | yes | yes | yes | yes |
+| Points / stats / primaries / ammo | yes | yes | yes | yes |
+| Perks | yes | yes | yes | yes |
+| Kino world adapter | yes | yes | yes | yes |
+| Hellhound scheduler | no | yes | yes | yes |
+| Persistent total run time | no | no | yes | yes |
+| Melee / tactical state (Bowie, monkeys) | no | no | yes | yes |
+| Multi-PAP level per primary | no | no | no | yes |
 
-A legacy save is never modified merely by loading it. The **next successful autosave** writes all currently available state as v7.
+A legacy save is never modified merely by loading it. The **next successful autosave** writes all currently available state as v8.
 
 For safety, the reader is format-gated. A v5 restore never consumes archived v6/v7-only values that may be left in `config.cfg` from another snapshot.
 
@@ -24,7 +25,7 @@ For safety, the reader is format-gated. A v5 restore never consumes archived v6/
 
 ```text
 zr_sv_valid
-zr_sv_format            # current writer: 7
+zr_sv_format            # current writer: 8
 zr_sv_mod_version
 zr_sv_map
 zr_sv_round             # next round to play
@@ -80,6 +81,7 @@ zr_sv_p0_weapon_count
 zr_sv_p0_w0_name
 zr_sv_p0_w0_clip
 zr_sv_p0_w0_stock
+zr_sv_p0_w0_pap_level   # v8+
 ...
 zr_sv_p0_w2_name
 zr_sv_p0_w2_clip
@@ -111,6 +113,10 @@ zr_sv_p0_tactical_stock
 These fields preserve state such as `bowie_knife_zm` and `zombie_cymbal_monkey`.
 
 They are deliberately ignored for v5/v6 restores.
+
+## Multi-PAP state (v8+)
+
+Each primary weapon slot stores `pap_level`. A value of `1` is the normal stock Pack-a-Punch result; values `2+` are T5ZR extra levels. Legacy v5/v6/v7 saves do not read this field, even if a stale archived value exists.
 
 ## Kino world adapter (v5+)
 
@@ -145,7 +151,7 @@ The first installer run creates `config.cfg.t5zr.bak`.
 Resume is rejected when:
 
 - `zr_sv_valid != 1`;
-- the format is not v5, v6 or v7;
+- the format is not v5, v6, v7 or v8;
 - saved map and current map differ;
 - saved round is invalid.
 
