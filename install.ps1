@@ -33,7 +33,7 @@ $UiDir = Join-Path $T5Root "ui"
 $MenuTarget = Join-Path $UiDir "xboxlive_privatelobby.menu"
 $MenuBackupPath = Join-Path $UiDir "xboxlive_privatelobby.menu.t5zr.preexisting.bak"
 
-$Version = "0.7.0-beta.1"
+$Version = "0.7.0-beta.2"
 $SaveFormat = "7"
 
 $OldScriptTargets = @(
@@ -160,7 +160,7 @@ function Build-T5ZRMenuOverride {
 			dvarString( zr_sv_map ) == "zombie_cod5_asylum" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_sumpf" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_factory" )
-		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && ( dvarInt( zr_sv_format ) == 6 || dvarInt( zr_sv_format ) == 7 ) && T5ZR_SUPPORTED_SAVE_MAP )
+		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && ( dvarInt( zr_sv_format ) == 5 || dvarInt( zr_sv_format ) == 6 || dvarInt( zr_sv_format ) == 7 ) && T5ZR_SUPPORTED_SAVE_MAP )
 '@
 
     if (-not $menu.Contains($hostMacros)) {
@@ -191,7 +191,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.7.0-beta.1 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.7.0-beta.2 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -376,7 +376,7 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] Save format : v7 (les saves v6 restent lisibles et migrent au prochain autosave)."
+Write-Host "[T5ZR] Save format : v7 (les saves v5/v6 restent lisibles et migrent au prochain autosave)."
 Write-Host "[T5ZR] v7 ajoute HUD/temps total + melee/tactique (Bowie et singes)."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
