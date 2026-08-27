@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.7.0-beta.2 / save format v7
+// v0.8.0-beta.1 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -13,7 +13,8 @@
 // - Bowie/melee + tactical grenade state (including cymbal monkeys)
 // - optional corner HUD: round time, total run time and zombies remaining
 // - compact autosave toast at the top-center of the screen
-// - backward-compatible reader for legacy save formats v5 and v6
+// - backward-compatible reader for legacy save formats v5, v6 and v7
+// - multi-level Pack-a-Punch for supported upgraded firearms
 //
 // Saves are intentionally made at round boundaries. Mid-round zombies, active
 // powerups, temporary trap/cooldown timers and RNG are not snapshots.
@@ -271,6 +272,398 @@ zr_set_flag(flag_name)
     }
 }
 
+zr_clear_flag(flag_name)
+{
+    if (common_scripts\utility::flag(flag_name))
+    {
+        common_scripts\utility::flag_clear(flag_name);
+    }
+}
+
+// -------------------------------------------------------------------------
+// Multi-level Pack-a-Punch
+// Stock BO1 handles the first PAP and ignores weapons that are already
+// upgraded. T5ZR listens to the same machine trigger only for PAP level 2+.
+// -------------------------------------------------------------------------
+
+zr_multi_pap_weapon_supported(weapon)
+{
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+    {
+        return false;
+    }
+
+    // Script-heavy / explosive wonder weapons have bespoke damage paths.
+    // Keep the first public beta limited to conventional firearms.
+    if (IsSubStr(weapon, "ray_gun") ||
+        IsSubStr(weapon, "tesla_gun") ||
+        IsSubStr(weapon, "thundergun") ||
+        IsSubStr(weapon, "freezegun") ||
+        IsSubStr(weapon, "microwavegun") ||
+        IsSubStr(weapon, "crossbow") ||
+        IsSubStr(weapon, "m72_law") ||
+        IsSubStr(weapon, "china_lake") ||
+        IsSubStr(weapon, "knife_ballistic") ||
+        weapon == "m1911_upgraded_zm")
+    {
+        return false;
+    }
+
+    return true;
+}
+
+zr_multi_pap_get_level(weapon)
+{
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+    {
+        return 0;
+    }
+
+    if (!IsDefined(self.zr_multi_pap_levels))
+    {
+        self.zr_multi_pap_levels = [];
+    }
+
+    if (IsDefined(self.zr_multi_pap_levels[weapon]))
+    {
+        return Int(self.zr_multi_pap_levels[weapon]);
+    }
+
+    if (self maps\_zombiemode_weapons::is_weapon_upgraded(weapon))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+zr_multi_pap_set_level(weapon, pap_level)
+{
+    if (!IsDefined(self.zr_multi_pap_levels))
+    {
+        self.zr_multi_pap_levels = [];
+    }
+
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+    {
+        return;
+    }
+
+    self.zr_multi_pap_levels[weapon] = Int(pap_level);
+}
+
+zr_multi_pap_max_level()
+{
+    value = GetDvarInt("zr_pap_max_level");
+
+    if (value < 2)
+    {
+        value = 2;
+    }
+
+    if (value > 10)
+    {
+        value = 10;
+    }
+
+    return value;
+}
+
+zr_multi_pap_cost(next_level)
+{
+    base_cost = GetDvarInt("zr_pap_cost_base");
+    step_cost = GetDvarInt("zr_pap_cost_step");
+
+    if (base_cost < 0)
+        base_cost = 0;
+    if (step_cost < 0)
+        step_cost = 0;
+
+    return base_cost + ((next_level - 2) * step_cost);
+}
+
+zr_multi_pap_scaled_value(base_value, pap_level, percent_per_level)
+{
+    extra_levels = pap_level - 1;
+
+    if (extra_levels <= 0 || percent_per_level <= 0)
+    {
+        return Int(base_value);
+    }
+
+    return Int((base_value * (100 + (extra_levels * percent_per_level))) / 100);
+}
+
+zr_multi_pap_clip_target(weapon, pap_level)
+{
+    return zr_multi_pap_scaled_value(WeaponClipSize(weapon), pap_level, GetDvarInt("zr_pap_clip_percent"));
+}
+
+zr_multi_pap_stock_target(weapon, pap_level)
+{
+    return zr_multi_pap_scaled_value(WeaponStartAmmo(weapon), pap_level, GetDvarInt("zr_pap_stock_percent"));
+}
+
+zr_multi_pap_apply_full_ammo(weapon, pap_level)
+{
+    target_clip = zr_multi_pap_clip_target(weapon, pap_level);
+    target_stock = zr_multi_pap_stock_target(weapon, pap_level);
+
+    self SetWeaponAmmoClip(weapon, target_clip);
+    self SetWeaponAmmoStock(weapon, target_stock);
+
+    actual_clip = self GetWeaponAmmoClip(weapon);
+    actual_stock = self GetWeaponAmmoStock(weapon);
+
+    if (actual_clip < target_clip)
+    {
+        println("[T5ZR] Multi-PAP warning: engine clamped clip for " + weapon + " target=" + target_clip + " actual=" + actual_clip);
+    }
+
+    if (actual_stock < target_stock)
+    {
+        println("[T5ZR] Multi-PAP warning: engine clamped reserve for " + weapon + " target=" + target_stock + " actual=" + actual_stock);
+    }
+}
+
+zr_multi_pap_ammo_monitor()
+{
+    self endon("disconnect");
+
+    last_weapon = "none";
+    last_clip = 0;
+    last_stock = 0;
+
+    for (;;)
+    {
+        wait 0.05;
+
+        if (GetDvarInt("zr_pap_multi") != 1)
+        {
+            continue;
+        }
+
+        weapon = self GetCurrentWeapon();
+
+        if (!IsDefined(weapon) || weapon == "" || weapon == "none" || !self HasWeapon(weapon))
+        {
+            last_weapon = "none";
+            last_clip = 0;
+            last_stock = 0;
+            continue;
+        }
+
+        pap_level = self zr_multi_pap_get_level(weapon);
+
+        if (pap_level <= 1 || !zr_multi_pap_weapon_supported(weapon))
+        {
+            last_weapon = weapon;
+            last_clip = self GetWeaponAmmoClip(weapon);
+            last_stock = self GetWeaponAmmoStock(weapon);
+            continue;
+        }
+
+        clip = self GetWeaponAmmoClip(weapon);
+        stock = self GetWeaponAmmoStock(weapon);
+
+        if (weapon == last_weapon)
+        {
+            // A normal BO1 reload fills only the weapon asset's native clip.
+            // When that clip jumps upward, move extra rounds from reserve into
+            // T5ZR's effective enlarged magazine.
+            if (clip > last_clip)
+            {
+                target_clip = zr_multi_pap_clip_target(weapon, pap_level);
+                missing = target_clip - clip;
+
+                if (missing > 0 && stock > 0)
+                {
+                    if (missing > stock)
+                    {
+                        missing = stock;
+                    }
+
+                    self SetWeaponAmmoClip(weapon, clip + missing);
+                    self SetWeaponAmmoStock(weapon, stock - missing);
+                    clip = self GetWeaponAmmoClip(weapon);
+                    stock = self GetWeaponAmmoStock(weapon);
+                }
+            }
+
+            // Max Ammo / ammo purchases normally refill to the stock asset
+            // reserve. Expand that refill to the configured PAP reserve cap.
+            if (stock > last_stock)
+            {
+                base_stock = WeaponStartAmmo(weapon);
+                target_stock = zr_multi_pap_stock_target(weapon, pap_level);
+
+                if (stock >= base_stock && target_stock > stock)
+                {
+                    self SetWeaponAmmoStock(weapon, target_stock);
+                    stock = self GetWeaponAmmoStock(weapon);
+                }
+            }
+        }
+
+        last_weapon = weapon;
+        last_clip = clip;
+        last_stock = stock;
+    }
+}
+
+zr_multi_pap_damage_callback(mod, hit_location, hit_origin, player, amount)
+{
+    if (GetDvarInt("zr_pap_multi") != 1)
+    {
+        return false;
+    }
+
+    // This is the nested DoDamage generated by our own bonus. Returning true
+    // suppresses duplicate points/effects while preserving the engine damage.
+    if (IsDefined(self.zr_multi_pap_bonus_guard) && self.zr_multi_pap_bonus_guard)
+    {
+        return true;
+    }
+
+    if (!IsDefined(player) || !IsPlayer(player) || !IsDefined(amount) || amount <= 0)
+    {
+        return false;
+    }
+
+    weapon = self.damageweapon;
+
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+    {
+        weapon = player GetCurrentWeapon();
+    }
+
+    if (!zr_multi_pap_weapon_supported(weapon))
+    {
+        return false;
+    }
+
+    pap_level = player zr_multi_pap_get_level(weapon);
+
+    if (pap_level <= 1)
+    {
+        return false;
+    }
+
+    // Only conventional firearm hit paths get bonus damage. This keeps
+    // launchers, scripted wonder weapons and alternate explosive modes stock.
+    weapon_class = WeaponClass(weapon);
+    if (mod != "MOD_RIFLE_BULLET" && mod != "MOD_PISTOL_BULLET" && weapon_class != "spread")
+    {
+        return false;
+    }
+
+    bonus_percent = (pap_level - 1) * GetDvarInt("zr_pap_damage_percent");
+
+    if (bonus_percent <= 0)
+    {
+        return false;
+    }
+
+    bonus_damage = Int((amount * bonus_percent) / 100);
+
+    if (bonus_damage < 1)
+    {
+        bonus_damage = 1;
+    }
+
+    self.zr_multi_pap_bonus_guard = true;
+    self DoDamage(bonus_damage, hit_origin, player, 0, mod, hit_location);
+    self.zr_multi_pap_bonus_guard = false;
+
+    return false;
+}
+
+zr_multi_pap_trigger()
+{
+    for (;;)
+    {
+        self waittill("trigger", player);
+
+        if (GetDvarInt("zr_pap_multi") != 1 || !IsDefined(player))
+        {
+            continue;
+        }
+
+        // Stock defines trigger.cost only once Pack-a-Punch is actually active.
+        if (!IsDefined(self.cost))
+        {
+            continue;
+        }
+
+        if (zr_flag_is_set("pack_machine_in_use"))
+        {
+            continue;
+        }
+
+        weapon = player GetCurrentWeapon();
+
+        // The stock PAP thread owns level 0 -> level 1.
+        if (!IsDefined(weapon) || weapon == "" || weapon == "none" ||
+            !player maps\_zombiemode_weapons::is_weapon_upgraded(weapon))
+        {
+            continue;
+        }
+
+        if (!zr_multi_pap_weapon_supported(weapon))
+        {
+            player iPrintLnBold("^3T5ZR PAP:^7 arme speciale non supportee pour le multi-PAP");
+            continue;
+        }
+
+        current_level = player zr_multi_pap_get_level(weapon);
+        next_level = current_level + 1;
+        max_level = zr_multi_pap_max_level();
+
+        if (next_level > max_level)
+        {
+            player iPrintLnBold("^2T5ZR PAP:^7 niveau maximum " + max_level);
+            continue;
+        }
+
+        cost = zr_multi_pap_cost(next_level);
+
+        if (player.score < cost)
+        {
+            player iPrintLnBold("^3T5ZR PAP " + next_level + ":^7 " + cost + " points requis");
+            continue;
+        }
+
+        zr_set_flag("pack_machine_in_use");
+
+        player maps\_zombiemode_score::minus_to_player_score(cost);
+        player zr_multi_pap_set_level(weapon, next_level);
+        player zr_multi_pap_apply_full_ammo(weapon, next_level);
+
+        zr_clear_flag("pack_machine_in_use");
+
+        damage_bonus = (next_level - 1) * GetDvarInt("zr_pap_damage_percent");
+        clip_bonus = (next_level - 1) * GetDvarInt("zr_pap_clip_percent");
+        stock_bonus = (next_level - 1) * GetDvarInt("zr_pap_stock_percent");
+
+        player iPrintLnBold("^2T5ZR PAP " + next_level + "^7 - degats +" + damage_bonus + "% / chargeur +" + clip_bonus + "% / reserve +" + stock_bonus + "%");
+        println("[T5ZR] Multi-PAP " + player.name + " weapon=" + weapon + " level=" + next_level + " cost=" + cost);
+    }
+}
+
+zr_init_multi_pap()
+{
+    maps\_zombiemode_spawner::register_zombie_damage_callback(::zr_multi_pap_damage_callback);
+
+    triggers = GetEntArray("zombie_vending_upgrade", "targetname");
+
+    for (i = 0; i < triggers.size; i++)
+    {
+        triggers[i] thread zr_multi_pap_trigger();
+    }
+
+    println("[T5ZR] Multi-PAP armed on " + triggers.size + " Pack-a-Punch trigger(s).");
+}
+
 zr_player_guid(player)
 {
     guid = player GetGuid();
@@ -303,6 +696,7 @@ zr_clear_saved_weapon(slot, weapon_slot)
     zr_store(zr_weapon_key(slot, weapon_slot, "name"), "");
     zr_store(zr_weapon_key(slot, weapon_slot, "clip"), "0");
     zr_store(zr_weapon_key(slot, weapon_slot, "stock"), "0");
+    zr_store(zr_weapon_key(slot, weapon_slot, "pap_level"), "0");
 }
 
 zr_clear_saved_perks(slot)
@@ -371,7 +765,7 @@ zr_clear_round_scheduler_save()
 zr_clear_save()
 {
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "7");
+    zr_store("zr_sv_format", "8");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", "");
     zr_store("zr_sv_round", "0");
@@ -546,6 +940,7 @@ zr_save_player(slot, player)
             zr_store(zr_weapon_key(slot, w, "name"), weapon);
             zr_store(zr_weapon_key(slot, w, "clip"), "" + player GetWeaponAmmoClip(weapon));
             zr_store(zr_weapon_key(slot, w, "stock"), "" + player GetWeaponAmmoStock(weapon));
+            zr_store(zr_weapon_key(slot, w, "pap_level"), "" + player zr_multi_pap_get_level(weapon));
         }
         else
         {
@@ -618,7 +1013,7 @@ zr_save_game(reason)
     }
 
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "7");
+    zr_store("zr_sv_format", "8");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", zr_current_map());
     zr_store("zr_sv_round", "" + level.round_number);
@@ -689,6 +1084,7 @@ zr_print_status()
     println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume"));
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
     println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud"));
+    println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
 
     zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
 }
@@ -918,6 +1314,18 @@ zr_restore_player_slot(slot)
         self GiveWeapon(weapon);
         self SetWeaponAmmoClip(weapon, GetDvarInt(zr_weapon_key(slot, i, "clip")));
         self SetWeaponAmmoStock(weapon, GetDvarInt(zr_weapon_key(slot, i, "stock")));
+
+        if (IsDefined(level.zr_resume_save_format) && level.zr_resume_save_format >= 8)
+        {
+            saved_pap_level = GetDvarInt(zr_weapon_key(slot, i, "pap_level"));
+
+            if (saved_pap_level < 0)
+            {
+                saved_pap_level = 0;
+            }
+
+            self zr_multi_pap_set_level(weapon, saved_pap_level);
+        }
     }
 
     // Melee/tactical fields were introduced in v7. Never consume stale
@@ -1212,6 +1620,12 @@ zr_restore_on_spawn()
             self thread zr_hud_loop();
         }
 
+        if (!IsDefined(self.zr_multi_pap_monitor_started))
+        {
+            self.zr_multi_pap_monitor_started = true;
+            self thread zr_multi_pap_ammo_monitor();
+        }
+
         if (!IsDefined(level.zr_pending_resume) || !level.zr_pending_resume)
         {
             continue;
@@ -1263,7 +1677,7 @@ zr_prepare_resume()
 
     save_format = GetDvarInt("zr_sv_format");
 
-    if (save_format != 5 && save_format != 6 && save_format != 7)
+    if (save_format != 5 && save_format != 6 && save_format != 7 && save_format != 8)
     {
         println("[T5ZR] Resume aborted: unsupported save format " + GetDvar("zr_sv_format") + ".");
         SetDvar("zr_resume", "0");
@@ -1326,11 +1740,15 @@ zr_prepare_resume()
 
     if (save_format == 5)
     {
-        println("[T5ZR] Legacy v5 compatibility: no saved dog scheduler, total run time or offhand state; next autosave migrates to v7.");
+        println("[T5ZR] Legacy v5 compatibility: no saved dog scheduler, total run time, offhand or multi-PAP state; next autosave migrates to v8.");
     }
     else if (save_format == 6)
     {
-        println("[T5ZR] Legacy v6 compatibility: no saved total run time or offhand state; next autosave migrates to v7.");
+        println("[T5ZR] Legacy v6 compatibility: no saved total run time, offhand or multi-PAP state; next autosave migrates to v8.");
+    }
+    else if (save_format == 7)
+    {
+        println("[T5ZR] Legacy v7 compatibility: no saved multi-PAP levels; upgraded weapons resume at PAP level 1 and next autosave migrates to v8.");
     }
 
     // World restoration is separate from player spawn restoration.
@@ -1342,9 +1760,9 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.7.0-beta.2";
+    level.zr_mod_version = "0.8.0-beta.1";
     level.zr_pending_resume = false;
-    level.zr_resume_save_format = 7;
+    level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
     level.zr_total_time_base_seconds = 0;
     level.zr_session_start_time = 0;
@@ -1372,10 +1790,27 @@ main()
     if (GetDvar("zr_hud_zombies") == "")
         SetDvar("zr_hud_zombies", "1");
 
+    if (GetDvar("zr_pap_multi") == "")
+        SetDvar("zr_pap_multi", "1");
+    if (GetDvar("zr_pap_max_level") == "")
+        SetDvar("zr_pap_max_level", "5");
+    if (GetDvar("zr_pap_cost_base") == "")
+        SetDvar("zr_pap_cost_base", "7500");
+    if (GetDvar("zr_pap_cost_step") == "")
+        SetDvar("zr_pap_cost_step", "2500");
+    if (GetDvar("zr_pap_damage_percent") == "")
+        SetDvar("zr_pap_damage_percent", "20");
+    if (GetDvar("zr_pap_clip_percent") == "")
+        SetDvar("zr_pap_clip_percent", "15");
+    if (GetDvar("zr_pap_stock_percent") == "")
+        SetDvar("zr_pap_stock_percent", "20");
+
+    zr_init_multi_pap();
+
     level thread zr_watch_round_number();
     level thread zr_watch_controls();
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v7, HUD + offhand + scoreboard + dog scheduler + Kino world)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, multi-PAP + HUD + offhand + scoreboard + dog scheduler + Kino world)");
 }
