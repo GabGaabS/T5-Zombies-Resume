@@ -33,8 +33,8 @@ $UiDir = Join-Path $T5Root "ui"
 $MenuTarget = Join-Path $UiDir "xboxlive_privatelobby.menu"
 $MenuBackupPath = Join-Path $UiDir "xboxlive_privatelobby.menu.t5zr.preexisting.bak"
 
-$Version = "0.6.0-beta.1"
-$SaveFormat = "6"
+$Version = "0.7.0-beta.1"
+$SaveFormat = "7"
 
 $OldScriptTargets = @(
     (Join-Path $SpScriptsDir "zombie_resume.gsc"),
@@ -278,7 +278,14 @@ Ensure-ArchivedDvar "zr_sv_map" ""
 Ensure-ArchivedDvar "zr_sv_round" "0"
 Ensure-ArchivedDvar "zr_sv_reason" ""
 Ensure-ArchivedDvar "zr_sv_player_count" "0"
+Ensure-ArchivedDvar "zr_sv_total_time_seconds" "0"
 Ensure-ArchivedDvar "zr_sv_world_adapter" "none"
+
+# HUD preferences. These are user-facing settings, not save-state fields.
+Ensure-ArchivedDvar "zr_hud" "1"
+Ensure-ArchivedDvar "zr_hud_round_time" "1"
+Ensure-ArchivedDvar "zr_hud_total_time" "1"
+Ensure-ArchivedDvar "zr_hud_zombies" "1"
 
 # Special-round scheduler state. These fields preserve BO1's hellhound cycle
 # across a resumed session instead of letting next_dog_round reset to 5-7.
@@ -314,6 +321,10 @@ for ($p = 0; $p -lt 4; $p++) {
     Ensure-ArchivedDvar "zr_sv_p${p}_score_total" "0"
     Ensure-ArchivedDvar "zr_sv_p${p}_current_weapon" "none"
     Ensure-ArchivedDvar "zr_sv_p${p}_weapon_count" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_melee_weapon" ""
+    Ensure-ArchivedDvar "zr_sv_p${p}_tactical_weapon" ""
+    Ensure-ArchivedDvar "zr_sv_p${p}_tactical_clip" "0"
+    Ensure-ArchivedDvar "zr_sv_p${p}_tactical_stock" "0"
     Ensure-ArchivedDvar "zr_sv_p${p}_perk_count" "0"
 
     # Round scoreboard/stat state.
@@ -365,14 +376,18 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] Save format : v6 (compatible avec les saves v6 de 0.5.0-beta.2)."
-Write-Host "[T5ZR] Le menu optionnel utilise directement la save v6 existante."
+Write-Host "[T5ZR] Save format : v7 (les saves v6 restent lisibles et migrent au prochain autosave)."
+Write-Host "[T5ZR] v7 ajoute HUD/temps total + melee/tactique (Bowie et singes)."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
 Write-Host "       set zr_save_now 1     -> save manuelle"
 Write-Host "       set zr_resume 1       -> armer la reprise, puis map_restart"
 Write-Host "       set zr_clear_save 1   -> effacer la save"
+Write-Host "       set zr_hud 0/1        -> masquer/afficher tout le HUD T5ZR"
+Write-Host "       set zr_hud_round_time 0/1"
+Write-Host "       set zr_hud_total_time 0/1"
+Write-Host "       set zr_hud_zombies 0/1"
 if ($InstallMenu) {
     Write-Host ""
     Write-Host "[T5ZR] Dans le lobby prive, utilise : T5ZR - RESUME GAME"
