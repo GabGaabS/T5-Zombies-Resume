@@ -160,7 +160,7 @@ function Build-T5ZRMenuOverride {
 			dvarString( zr_sv_map ) == "zombie_cod5_asylum" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_sumpf" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_factory" )
-		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && dvarInt( zr_sv_format ) == 6 && T5ZR_SUPPORTED_SAVE_MAP )
+		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && ( dvarInt( zr_sv_format ) == 6 || dvarInt( zr_sv_format ) == 7 ) && T5ZR_SUPPORTED_SAVE_MAP )
 '@
 
     if (-not $menu.Contains($hostMacros)) {
@@ -191,7 +191,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.6.0-beta.1 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.7.0-beta.1 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
