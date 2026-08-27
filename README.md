@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.6.0--beta.1-blue)
+![Version](https://img.shields.io/badge/version-0.7.0--beta.1-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.6.0-beta.1` adds the first menu integration on top of the v6 save runtime.
+`0.7.0-beta.1` adds the in-game HUD and offhand persistence on top of the menu/save runtime.
 
 The save layer already covers:
 
@@ -19,7 +19,10 @@ The save layer already covers:
 - points and total score;
 - weapons and clip/reserve ammo;
 - selected weapon;
+- Bowie/melee state and tactical grenades (including cymbal monkeys);
 - perks;
+- persistent total run time;
+- optional corner HUD with round time, total time and zombies remaining;
 - coop scoreboard kills/headshots/downs/revives;
 - strict per-player matching through `GetGuid()`;
 - hellhound scheduler state;
@@ -65,7 +68,7 @@ The GSC/save runtime remains installed.
 
 ## Using the menu
 
-When a valid v6 save exists and you are the private-lobby host, a new button should appear:
+When a valid v6 or v7 save exists and you are the private-lobby host, a new button should appear:
 
 ```text
 T5ZR - RESUME GAME
@@ -88,9 +91,29 @@ set zr_resume 1
 map_restart
 ```
 
+## HUD
+
+The HUD is enabled by default:
+
+- top-left: current round time;
+- top-right: total run time (continued after a resume);
+- bottom-right: zombies remaining (alive + still waiting to spawn).
+
+Console toggles:
+
+```text
+set zr_hud 0
+set zr_hud 1
+set zr_hud_round_time 0/1
+set zr_hud_total_time 0/1
+set zr_hud_zombies 0/1
+```
+
+Autosave confirmation now uses a compact top-center HUD message instead of the large bold center message.
+
 ## Save format
 
-0.6.0-beta.1 still uses **save format v6**, so existing v6 saves from 0.5.0-beta.2 remain compatible.
+0.7.0-beta.1 writes **save format v7**. Existing v6 saves remain readable; after the next autosave they are migrated to v7. v7 adds total run time plus melee/tactical state.
 
 ## Install paths
 
@@ -124,7 +147,7 @@ Not currently reconstructed:
 - RNG state;
 - full map-specific world state outside implemented adapters.
 
-The optional menu integration is new in 0.6.0-beta.1 and needs real r5346 validation before being called stable.
+The HUD/offhand v7 additions and the optional menu integration need continued real r5346 validation before being called stable.
 
 ## Plutonium r5346
 
