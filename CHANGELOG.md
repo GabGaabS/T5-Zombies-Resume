@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-beta.2 - 2026-08-27
+
+- Add backward-compatible resume for save format v5.
+- Keep v6 compatibility and continue writing only save format v7.
+- Guard legacy reads by format so stale newer fields cannot leak into a v5/v6 restore.
+- For v5, restore its original GUID/player, score/stat, primary weapon/ammo, perk and Kino world fields.
+- For v5, leave the hellhound scheduler on stock behavior because scheduler state was introduced in v6.
+- For v5/v6, do not restore v7-only total-time or melee/tactical fields.
+- Allow the optional **T5ZR - RESUME GAME** button for valid v5, v6 and v7 saves.
+- Migrate legacy saves to v7 automatically on the next autosave.
+
 ## 0.7.0-beta.1 - 2026-08-27
 
 - Save format v7; v6 saves remain readable and migrate on the next autosave.
