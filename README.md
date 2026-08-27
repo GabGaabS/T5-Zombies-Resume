@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.7.0--beta.1-blue)
+![Version](https://img.shields.io/badge/version-0.7.0--beta.2-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.7.0-beta.1` adds the in-game HUD and offhand persistence on top of the menu/save runtime.
+`0.7.0-beta.2` keeps the v7 HUD/offhand runtime and adds a guarded legacy reader for v5 and v6 saves.
 
 The save layer already covers:
 
@@ -68,7 +68,7 @@ The GSC/save runtime remains installed.
 
 ## Using the menu
 
-When a valid v6 or v7 save exists and you are the private-lobby host, a new button should appear:
+When a valid v5, v6 or v7 save exists and you are the private-lobby host, a new button should appear:
 
 ```text
 T5ZR - RESUME GAME
@@ -113,7 +113,14 @@ Autosave confirmation now uses a compact top-center HUD message instead of the l
 
 ## Save format
 
-0.7.0-beta.1 writes **save format v7**. Existing v6 saves remain readable; after the next autosave they are migrated to v7. v7 adds total run time plus melee/tactical state.
+0.7.0-beta.2 writes **save format v7**. Existing **v5 and v6** saves remain readable and migrate to v7 on the next autosave.
+
+Legacy behavior is intentionally conservative:
+
+- v5 restores its native fields: round, GUID players, points/stats, primaries/ammo, perks and supported Kino world state;
+- v5 does **not** read dog-scheduler, total-time or offhand fields because those did not exist in v5;
+- v6 additionally restores its saved hellhound scheduler;
+- v5/v6 start the new total-time counter from the resumed session and do not invent Bowie/monkey state that was never stored.
 
 ## Install paths
 
