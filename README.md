@@ -30,15 +30,94 @@ The save layer already covers:
 - Kino power and permanent opened routes;
 - Kino stage curtain and fully-linked teleporter state.
 
-## Install
+## Installation from scratch
 
-Close Plutonium completely, then run:
+### 1. Install Call of Duty: Black Ops
+
+T5ZR runs on **Plutonium T5**, which uses the original **Call of Duty: Black Ops** game files. Plutonium does not replace those files, so install Black Ops first from Steam or another legitimate source.
+
+A common Steam location is:
+
+```text
+C:\Program Files (x86)\Steam\steamapps\common\Call of Duty Black Ops
+```
+
+Your Steam library can be on another drive, so the exact path may differ.
+
+### 2. Download and install Plutonium
+
+Use the official Plutonium resources only:
+
+- official French installation guide: https://plutonium.pw/fr/docs/install/
+- official launcher download: https://cdn.plutonium.pw/updater/plutonium.exe
+- Plutonium home/docs: https://plutonium.pw/docs/
+
+Then:
+
+1. download `plutonium.exe`;
+2. save it somewhere convenient and launch it;
+3. sign in with your Plutonium/forum account;
+4. open the **Black Ops** tab;
+5. click **SETUP**;
+6. select the folder that contains your **Call of Duty: Black Ops** game files;
+7. click **PLAY** once to make sure Plutonium T5 starts correctly.
+
+If Plutonium reports an invalid game path, do not select an entire drive such as `C:\`. Select the actual `Call of Duty Black Ops` folder. You can change it later with **Game Settings** next to the PLAY button.
+
+> T5ZR is intended for private Plutonium T5 Zombies sessions. No external DLL, injector or memory patch is required.
+
+### 3. Download T5 Zombies Resume
+
+Repository:
+
+https://github.com/GabGaabS/T5-Zombies-Resume
+
+#### Option A — with Git
+
+Open PowerShell in the folder where you want the project, then run:
+
+```powershell
+git clone https://github.com/GabGaabS/T5-Zombies-Resume.git
+cd T5-Zombies-Resume
+```
+
+If you already cloned the project, update it instead:
+
+```powershell
+git pull
+```
+
+#### Option B — without Git
+
+1. open the GitHub repository;
+2. click **Code**;
+3. click **Download ZIP**;
+4. extract the ZIP;
+5. open PowerShell inside the extracted `T5-Zombies-Resume` folder.
+
+### 4. Install T5ZR
+
+**Close Plutonium completely** before installing or updating T5ZR.
+
+From the repository folder, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-This installs the GSC runtime only.
+This installs the GSC runtime to the Plutonium T5 storage directory. It does **not** install any external DLL.
+
+Expected runtime path:
+
+```text
+%LOCALAPPDATA%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
+```
+
+After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
+
+```text
+[T5ZR] T5 Zombies Resume v0.8.0-beta.1 loaded
+```
 
 ### Optional Resume Game button
 
