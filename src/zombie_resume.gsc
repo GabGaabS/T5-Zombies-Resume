@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.6.0-beta.1 / save format v6
+// v0.7.0-beta.1 / save format v7
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -10,6 +10,9 @@
 // - dog-round scheduler state so resumed special rounds are not skipped
 // - Kino adapter: power, permanent doors/debris and fully-linked teleporter
 // - each saved slot/player is restored only once per resumed session
+// - Bowie/melee + tactical grenade state (including cymbal monkeys)
+// - optional corner HUD: round time, total run time and zombies remaining
+// - compact autosave toast at the top-center of the screen
 //
 // Saves are intentionally made at round boundaries. Mid-round zombies, active
 // powerups, temporary trap/cooldown timers and RNG are not snapshots.
@@ -46,6 +49,202 @@ zr_show_message(message)
     for (i = 0; i < players.size; i++)
     {
         players[i] iPrintLnBold(message);
+    }
+}
+
+
+zr_pad2(value)
+{
+    value = Int(value);
+
+    if (value < 10)
+    {
+        return "0" + value;
+    }
+
+    return "" + value;
+}
+
+zr_format_time(seconds)
+{
+    seconds = Int(seconds);
+
+    if (seconds < 0)
+    {
+        seconds = 0;
+    }
+
+    hours = Int(seconds / 3600);
+    minutes = Int((seconds - (hours * 3600)) / 60);
+    secs = seconds - (hours * 3600) - (minutes * 60);
+
+    if (hours > 0)
+    {
+        return "" + hours + ":" + zr_pad2(minutes) + ":" + zr_pad2(secs);
+    }
+
+    return zr_pad2(minutes) + ":" + zr_pad2(secs);
+}
+
+zr_total_elapsed_seconds()
+{
+    base_seconds = zr_int_or(level.zr_total_time_base_seconds, 0);
+
+    if (!IsDefined(level.zr_session_start_time) || level.zr_session_start_time <= 0)
+    {
+        if (IsDefined(level.round_start_time) && level.round_start_time > 0)
+        {
+            level.zr_session_start_time = level.round_start_time;
+        }
+        else
+        {
+            return base_seconds;
+        }
+    }
+
+    elapsed = Int((GetTime() - level.zr_session_start_time) / 1000);
+
+    if (elapsed < 0)
+    {
+        elapsed = 0;
+    }
+
+    return base_seconds + elapsed;
+}
+
+zr_round_elapsed_seconds()
+{
+    if (!IsDefined(level.round_start_time) || level.round_start_time <= 0)
+    {
+        return 0;
+    }
+
+    elapsed = Int((GetTime() - level.round_start_time) / 1000);
+
+    if (elapsed < 0)
+    {
+        elapsed = 0;
+    }
+
+    return elapsed;
+}
+
+zr_zombies_remaining()
+{
+    pending = 0;
+
+    if (IsDefined(level.zombie_total))
+    {
+        pending = Int(level.zombie_total);
+    }
+
+    active = maps\_zombiemode_utility::get_enemy_count();
+    remaining = pending + active;
+
+    if (remaining < 0)
+    {
+        remaining = 0;
+    }
+
+    return remaining;
+}
+
+zr_save_toast_player(message)
+{
+    self endon("disconnect");
+
+    hud = NewClientHudElem(self);
+    hud.horzAlign = "center";
+    hud.vertAlign = "top";
+    hud.alignX = "center";
+    hud.alignY = "top";
+    hud.x = 0;
+    hud.y = 18;
+    hud.foreground = true;
+    hud.sort = 100;
+    hud.font = "default";
+    hud.fontScale = 0.8;
+    hud.alpha = 1;
+    hud SetText(message);
+
+    wait 2.0;
+    hud FadeOverTime(0.25);
+    hud.alpha = 0;
+    wait 0.25;
+    hud Destroy();
+}
+
+zr_show_save_toast(message)
+{
+    players = GetPlayers();
+
+    for (i = 0; i < players.size; i++)
+    {
+        players[i] thread zr_save_toast_player(message);
+    }
+}
+
+zr_create_corner_hud(horz_align, vert_align, align_x, align_y, x, y)
+{
+    hud = NewClientHudElem(self);
+    hud.horzAlign = horz_align;
+    hud.vertAlign = vert_align;
+    hud.alignX = align_x;
+    hud.alignY = align_y;
+    hud.x = x;
+    hud.y = y;
+    hud.foreground = true;
+    hud.sort = 90;
+    hud.font = "default";
+    hud.fontScale = 1.0;
+    hud.alpha = 0;
+
+    return hud;
+}
+
+zr_hud_loop()
+{
+    self endon("disconnect");
+
+    round_hud = self zr_create_corner_hud("left", "top", "left", "top", 12, 12);
+    total_hud = self zr_create_corner_hud("right", "top", "right", "top", -12, 12);
+    zombies_hud = self zr_create_corner_hud("right", "bottom", "right", "bottom", -12, -70);
+
+    for (;;)
+    {
+        hud_enabled = GetDvarInt("zr_hud") == 1;
+
+        if (hud_enabled && GetDvarInt("zr_hud_round_time") == 1)
+        {
+            round_hud.alpha = 1;
+            round_hud SetText("Manche: " + zr_format_time(zr_round_elapsed_seconds()));
+        }
+        else
+        {
+            round_hud.alpha = 0;
+        }
+
+        if (hud_enabled && GetDvarInt("zr_hud_total_time") == 1)
+        {
+            total_hud.alpha = 1;
+            total_hud SetText("Total: " + zr_format_time(zr_total_elapsed_seconds()));
+        }
+        else
+        {
+            total_hud.alpha = 0;
+        }
+
+        if (hud_enabled && GetDvarInt("zr_hud_zombies") == 1)
+        {
+            zombies_hud.alpha = 1;
+            zombies_hud SetText("Zombies: " + zr_zombies_remaining());
+        }
+        else
+        {
+            zombies_hud.alpha = 0;
+        }
+
+        wait 0.25;
     }
 }
 
@@ -123,6 +322,10 @@ zr_clear_saved_player(slot)
     zr_store(zr_player_key(slot, "score_total"), "0");
     zr_store(zr_player_key(slot, "current_weapon"), "none");
     zr_store(zr_player_key(slot, "weapon_count"), "0");
+    zr_store(zr_player_key(slot, "melee_weapon"), "");
+    zr_store(zr_player_key(slot, "tactical_weapon"), "");
+    zr_store(zr_player_key(slot, "tactical_clip"), "0");
+    zr_store(zr_player_key(slot, "tactical_stock"), "0");
 
     zr_store(zr_player_key(slot, "kills"), "0");
     zr_store(zr_player_key(slot, "kill_tracker"), "0");
@@ -167,12 +370,13 @@ zr_clear_round_scheduler_save()
 zr_clear_save()
 {
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "6");
+    zr_store("zr_sv_format", "7");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", "");
     zr_store("zr_sv_round", "0");
     zr_store("zr_sv_reason", "cleared");
     zr_store("zr_sv_player_count", "0");
+    zr_store("zr_sv_total_time_seconds", "0");
     zr_clear_round_scheduler_save();
     zr_clear_world_save();
 
@@ -267,6 +471,43 @@ zr_save_player_stats(slot, player)
     zr_store(zr_player_key(slot, "perks_stat"), "" + perks_stat);
 }
 
+
+zr_save_player_offhand(slot, player)
+{
+    melee_weapon = "";
+
+    if (IsDefined(player.current_melee_weapon))
+    {
+        melee_weapon = player.current_melee_weapon;
+    }
+
+    if (player HasWeapon("bowie_knife_zm"))
+    {
+        melee_weapon = "bowie_knife_zm";
+    }
+
+    tactical_weapon = "";
+
+    if (IsDefined(player.current_tactical_grenade))
+    {
+        tactical_weapon = player.current_tactical_grenade;
+    }
+
+    zr_store(zr_player_key(slot, "melee_weapon"), melee_weapon);
+    zr_store(zr_player_key(slot, "tactical_weapon"), tactical_weapon);
+
+    if (tactical_weapon != "" && tactical_weapon != "none" && player HasWeapon(tactical_weapon))
+    {
+        zr_store(zr_player_key(slot, "tactical_clip"), "" + player GetWeaponAmmoClip(tactical_weapon));
+        zr_store(zr_player_key(slot, "tactical_stock"), "" + player GetWeaponAmmoStock(tactical_weapon));
+    }
+    else
+    {
+        zr_store(zr_player_key(slot, "tactical_clip"), "0");
+        zr_store(zr_player_key(slot, "tactical_stock"), "0");
+    }
+}
+
 zr_save_player(slot, player)
 {
     guid = zr_player_guid(player);
@@ -289,6 +530,7 @@ zr_save_player(slot, player)
 
     zr_save_player_stats(slot, player);
     zr_save_player_perks(slot, player);
+    zr_save_player_offhand(slot, player);
 
     if (guid == "" || guid == "0")
     {
@@ -375,12 +617,13 @@ zr_save_game(reason)
     }
 
     zr_store("zr_sv_valid", "0");
-    zr_store("zr_sv_format", "6");
+    zr_store("zr_sv_format", "7");
     zr_store("zr_sv_mod_version", level.zr_mod_version);
     zr_store("zr_sv_map", zr_current_map());
     zr_store("zr_sv_round", "" + level.round_number);
     zr_store("zr_sv_reason", reason);
     zr_store("zr_sv_player_count", "" + player_count);
+    zr_store("zr_sv_total_time_seconds", "" + zr_total_elapsed_seconds());
 
     zr_save_round_scheduler();
     zr_save_world();
@@ -400,7 +643,7 @@ zr_save_game(reason)
     zr_store("zr_sv_valid", "1");
 
     println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + "), players=" + player_count + ", world=" + GetDvar("zr_sv_world_adapter"));
-    zr_show_message("^2T5ZR:^7 sauvegarde OK - prochaine manche " + level.round_number);
+    zr_show_save_toast("^2T5ZR:^7 sauvegarde OK - prochaine manche " + level.round_number);
 }
 
 zr_watch_round_number()
@@ -444,6 +687,7 @@ zr_print_status()
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
     println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume"));
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
+    println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud"));
 
     zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
 }
@@ -585,6 +829,56 @@ zr_restore_player_stats(slot)
     SetDvar(downs_dvar, "" + self.downs);
 }
 
+
+zr_restore_player_offhand(slot)
+{
+    melee_weapon = GetDvar(zr_player_key(slot, "melee_weapon"));
+
+    if (melee_weapon != "" && melee_weapon != "none")
+    {
+        if (!self HasWeapon(melee_weapon))
+        {
+            self GiveWeapon(melee_weapon);
+        }
+
+        self maps\_zombiemode_utility::set_player_melee_weapon(melee_weapon);
+
+        if (melee_weapon == "bowie_knife_zm")
+        {
+            if (self HasWeapon("knife_zm"))
+            {
+                self TakeWeapon("knife_zm");
+            }
+
+            self._bowie_zm_equipped = 1;
+        }
+    }
+
+    tactical_weapon = GetDvar(zr_player_key(slot, "tactical_weapon"));
+
+    if (tactical_weapon == "" || tactical_weapon == "none")
+    {
+        return;
+    }
+
+    if (tactical_weapon == "zombie_cymbal_monkey")
+    {
+        self maps\_zombiemode_weap_cymbal_monkey::player_give_cymbal_monkey();
+    }
+    else
+    {
+        if (!self HasWeapon(tactical_weapon))
+        {
+            self GiveWeapon(tactical_weapon);
+        }
+
+        self maps\_zombiemode_utility::set_player_tactical_grenade(tactical_weapon);
+    }
+
+    self SetWeaponAmmoClip(tactical_weapon, GetDvarInt(zr_player_key(slot, "tactical_clip")));
+    self SetWeaponAmmoStock(tactical_weapon, GetDvarInt(zr_player_key(slot, "tactical_stock")));
+}
+
 zr_restore_player_slot(slot)
 {
     level.zr_slot_claimed[slot] = true;
@@ -624,6 +918,8 @@ zr_restore_player_slot(slot)
         self SetWeaponAmmoClip(weapon, GetDvarInt(zr_weapon_key(slot, i, "clip")));
         self SetWeaponAmmoStock(weapon, GetDvarInt(zr_weapon_key(slot, i, "stock")));
     }
+
+    self zr_restore_player_offhand(slot);
 
     current = GetDvar(zr_player_key(slot, "current_weapon"));
 
@@ -904,6 +1200,12 @@ zr_restore_on_spawn()
             self iPrintLnBold("^2T5ZR " + level.zr_mod_version + "^7 actif");
         }
 
+        if (!IsDefined(self.zr_hud_started))
+        {
+            self.zr_hud_started = true;
+            self thread zr_hud_loop();
+        }
+
         if (!IsDefined(level.zr_pending_resume) || !level.zr_pending_resume)
         {
             continue;
@@ -953,9 +1255,11 @@ zr_prepare_resume()
         return;
     }
 
-    if (GetDvarInt("zr_sv_format") != 6)
+    save_format = GetDvarInt("zr_sv_format");
+
+    if (save_format != 6 && save_format != 7)
     {
-        println("[T5ZR] Resume aborted: save format " + GetDvar("zr_sv_format") + " is not v6. Create a new autosave with v0.5.0-beta.2 or newer.");
+        println("[T5ZR] Resume aborted: unsupported save format " + GetDvar("zr_sv_format") + ".");
         SetDvar("zr_resume", "0");
         return;
     }
@@ -979,6 +1283,17 @@ zr_prepare_resume()
     level.zr_pending_resume = true;
     level.zr_suppress_autosave = true;
 
+    if (save_format >= 7)
+    {
+        level.zr_total_time_base_seconds = GetDvarInt("zr_sv_total_time_seconds");
+    }
+    else
+    {
+        level.zr_total_time_base_seconds = 0;
+    }
+
+    level.zr_session_start_time = 0;
+
     while (!IsDefined(level.round_number))
     {
         wait 0.01;
@@ -992,7 +1307,7 @@ zr_prepare_resume()
 
     SetDvar("zr_resume", "0");
 
-    println("[T5ZR] Prepared v6 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
+    println("[T5ZR] Prepared v" + save_format + " resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
 
     // World restoration is separate from player spawn restoration.
     level thread zr_restore_world();
@@ -1003,9 +1318,11 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.6.0-beta.1";
+    level.zr_mod_version = "0.7.0-beta.1";
     level.zr_pending_resume = false;
     level.zr_suppress_autosave = false;
+    level.zr_total_time_base_seconds = 0;
+    level.zr_session_start_time = 0;
     level.zr_slot_claimed = [];
 
     for (i = 0; i < 4; i++)
@@ -1021,11 +1338,19 @@ main()
         SetDvar("zr_resume", "0");
     if (GetDvar("zr_clear_save") == "")
         SetDvar("zr_clear_save", "0");
+    if (GetDvar("zr_hud") == "")
+        SetDvar("zr_hud", "1");
+    if (GetDvar("zr_hud_round_time") == "")
+        SetDvar("zr_hud_round_time", "1");
+    if (GetDvar("zr_hud_total_time") == "")
+        SetDvar("zr_hud_total_time", "1");
+    if (GetDvar("zr_hud_zombies") == "")
+        SetDvar("zr_hud_zombies", "1");
 
     level thread zr_watch_round_number();
     level thread zr_watch_controls();
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v6, scoreboard + dog scheduler + Kino world)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v7, HUD + offhand + scoreboard + dog scheduler + Kino world)");
 }
