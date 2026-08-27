@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0-beta.1 - 2026-08-27
+
+- Save format v7; v6 saves remain readable and migrate on the next autosave.
+- Add optional per-player HUD: round time, persistent total run time and zombies remaining.
+- Count zombies as stock pending spawns plus currently alive enemies.
+- Move autosave confirmation to a compact top-center HUD message at half-size.
+- Preserve melee state, including the Bowie knife.
+- Preserve tactical grenade state and exact ammo, including cymbal monkeys.
+- Add archived HUD toggles: `zr_hud`, `zr_hud_round_time`, `zr_hud_total_time`, `zr_hud_zombies`.
+
 ## 0.6.0-beta.1 - 2026-08-26
 
 - Keep save format v6; v6 saves from 0.5.0-beta.2 remain compatible.
