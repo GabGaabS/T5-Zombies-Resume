@@ -33,8 +33,8 @@ $UiDir = Join-Path $T5Root "ui"
 $MenuTarget = Join-Path $UiDir "xboxlive_privatelobby.menu"
 $MenuBackupPath = Join-Path $UiDir "xboxlive_privatelobby.menu.t5zr.preexisting.bak"
 
-$Version = "0.7.0-beta.2"
-$SaveFormat = "7"
+$Version = "0.8.0-beta.1"
+$SaveFormat = "8"
 
 $OldScriptTargets = @(
     (Join-Path $SpScriptsDir "zombie_resume.gsc"),
@@ -160,7 +160,7 @@ function Build-T5ZRMenuOverride {
 			dvarString( zr_sv_map ) == "zombie_cod5_asylum" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_sumpf" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_factory" )
-		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && ( dvarInt( zr_sv_format ) == 5 || dvarInt( zr_sv_format ) == 6 || dvarInt( zr_sv_format ) == 7 ) && T5ZR_SUPPORTED_SAVE_MAP )
+		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && ( dvarInt( zr_sv_format ) == 5 || dvarInt( zr_sv_format ) == 6 || dvarInt( zr_sv_format ) == 7 || dvarInt( zr_sv_format ) == 8 ) && T5ZR_SUPPORTED_SAVE_MAP )
 '@
 
     if (-not $menu.Contains($hostMacros)) {
@@ -191,7 +191,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.7.0-beta.2 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.1 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -287,6 +287,15 @@ Ensure-ArchivedDvar "zr_hud_round_time" "1"
 Ensure-ArchivedDvar "zr_hud_total_time" "1"
 Ensure-ArchivedDvar "zr_hud_zombies" "1"
 
+# Multi-Pack-a-Punch tuning. Stock PAP is level 1; T5ZR handles level 2+.
+Ensure-ArchivedDvar "zr_pap_multi" "1"
+Ensure-ArchivedDvar "zr_pap_max_level" "5"
+Ensure-ArchivedDvar "zr_pap_cost_base" "7500"
+Ensure-ArchivedDvar "zr_pap_cost_step" "2500"
+Ensure-ArchivedDvar "zr_pap_damage_percent" "20"
+Ensure-ArchivedDvar "zr_pap_clip_percent" "15"
+Ensure-ArchivedDvar "zr_pap_stock_percent" "20"
+
 # Special-round scheduler state. These fields preserve BO1's hellhound cycle
 # across a resumed session instead of letting next_dog_round reset to 5-7.
 Ensure-ArchivedDvar "zr_sv_dog_rounds_enabled" "0"
@@ -340,6 +349,7 @@ for ($p = 0; $p -lt 4; $p++) {
         Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_name" ""
         Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_clip" "0"
         Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_stock" "0"
+        Ensure-ArchivedDvar "zr_sv_p${p}_w${w}_pap_level" "0"
     }
 
     for ($perk = 0; $perk -lt 16; $perk++) {
@@ -376,8 +386,8 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] Save format : v7 (les saves v5/v6 restent lisibles et migrent au prochain autosave)."
-Write-Host "[T5ZR] v7 ajoute HUD/temps total + melee/tactique (Bowie et singes)."
+Write-Host "[T5ZR] Save format : v8 (les saves v5/v6/v7 restent lisibles et migrent au prochain autosave)."
+Write-Host "[T5ZR] v8 ajoute les niveaux multi-Pack-a-Punch par arme."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
@@ -388,6 +398,12 @@ Write-Host "       set zr_hud 0/1        -> masquer/afficher tout le HUD T5ZR"
 Write-Host "       set zr_hud_round_time 0/1"
 Write-Host "       set zr_hud_total_time 0/1"
 Write-Host "       set zr_hud_zombies 0/1"
+Write-Host ""
+Write-Host "[T5ZR] Multi-PAP (PAP stock = niveau 1) :"
+Write-Host "       zr_pap_multi=1, max=5, couts extra=7500 + 2500/niveau"
+Write-Host "       bonus/niveau extra : degats +20%, chargeur +15%, reserve +20%"
+Write-Host "       Reglages : zr_pap_max_level, zr_pap_cost_base, zr_pap_cost_step,"
+Write-Host "                  zr_pap_damage_percent, zr_pap_clip_percent, zr_pap_stock_percent"
 if ($InstallMenu) {
     Write-Host ""
     Write-Host "[T5ZR] Dans le lobby prive, utilise : T5ZR - RESUME GAME"
