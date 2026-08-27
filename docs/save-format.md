@@ -1,23 +1,40 @@
-# Save format v6
+# Save format v7
 
-T5 Zombies Resume stores one host-side round-boundary snapshot in archived `zr_sv_*` dvars. A save becomes valid only after all session, scheduler, world and player fields have been written.
+T5 Zombies Resume writes one host-side round-boundary snapshot in archived `zr_sv_*` dvars. A save becomes valid only after all session, scheduler, world and player fields have been written.
+
+The current runtime writes **v7** and can read **v5, v6 and v7**.
+
+## Compatibility matrix
+
+| Field group | v5 | v6 | v7 |
+| --- | --- | --- | --- |
+| Round / map / player GUIDs | yes | yes | yes |
+| Points / stats / primaries / ammo | yes | yes | yes |
+| Perks | yes | yes | yes |
+| Kino world adapter | yes | yes | yes |
+| Hellhound scheduler | no | yes | yes |
+| Persistent total run time | no | no | yes |
+| Melee / tactical state (Bowie, monkeys) | no | no | yes |
+
+A legacy save is never modified merely by loading it. The **next successful autosave** writes all currently available state as v7.
+
+For safety, the reader is format-gated. A v5 restore never consumes archived v6/v7-only values that may be left in `config.cfg` from another snapshot.
 
 ## Session
 
 ```text
 zr_sv_valid
-zr_sv_format            # 6
+zr_sv_format            # current writer: 7
 zr_sv_mod_version
 zr_sv_map
 zr_sv_round             # next round to play
 zr_sv_reason
 zr_sv_player_count
 zr_sv_world_adapter
+zr_sv_total_time_seconds    # v7+
 ```
 
-## Hellhound scheduler
-
-When the map uses stock dog rounds:
+## Hellhound scheduler (v6+)
 
 ```text
 zr_sv_dog_rounds_enabled
@@ -26,13 +43,11 @@ zr_sv_dog_round_count
 zr_sv_next_dog_round
 ```
 
-BO1 normally chooses `next_dog_round` near game start and only switches the spawn function when `level.round_number == level.next_dog_round`. Jumping directly to a saved round without restoring this state causes the scheduler to be left behind.
-
-If `dog_round_active == 1`, the saved round itself had already been queued as a dog round at the autosave boundary. Resume rebuilds the stock `dog_round` flag and uses `maps\_zombiemode_ai_dogs::dog_round_spawning` for that round.
+A v5 resume intentionally leaves this on stock BO1 behavior because the v5 snapshot never contained scheduler state.
 
 ## Player identity
 
-Up to four slots are stored. `GetGuid()` is authoritative; the saved name is metadata only.
+Up to four slots are stored. Engine `GetGuid()` is authoritative; the saved name is metadata only.
 
 ```text
 zr_sv_p0_guid
@@ -55,16 +70,9 @@ zr_sv_p0_zombie_gibs
 zr_sv_p0_perks_stat
 ```
 
-BO1 keeps both networked player fields used by the coop scoreboard and script-side stat mirrors. v6 restores both:
+v5 already stored the script-side round stat values. Current releases rebuild both the stat mirrors and the coop scoreboard fields from those saved values.
 
-- `player.kills`;
-- `player.headshots`;
-- `player.downs`;
-- `player.revives`;
-- `player.kill_tracker`;
-- matching `player.stats[...]` entries.
-
-## Weapons
+## Primary weapons
 
 ```text
 zr_sv_p0_current_weapon
@@ -78,7 +86,7 @@ zr_sv_p0_w2_clip
 zr_sv_p0_w2_stock
 ```
 
-Up to three primary weapons are stored.
+Up to three primaries are stored.
 
 ## Perks
 
@@ -89,17 +97,24 @@ zr_sv_p0_perk0
 zr_sv_p0_perk15
 ```
 
-Perks are restored through the stock Zombies path:
+Perks are rebuilt through the stock Zombies perk path before primaries are restored, so Mule Kick can precede a third weapon.
+
+## Melee and tactical state (v7+)
 
 ```text
-self maps\_zombiemode_perks::give_perk(perk, false)
+zr_sv_p0_melee_weapon
+zr_sv_p0_tactical_weapon
+zr_sv_p0_tactical_clip
+zr_sv_p0_tactical_stock
 ```
 
-They are restored before weapons so Mule Kick can precede a third primary.
+These fields preserve state such as `bowie_knife_zm` and `zombie_cymbal_monkey`.
 
-## Kino world adapter
+They are deliberately ignored for v5/v6 restores.
 
-When `zr_sv_world_adapter == "kino_v1"`:
+## Kino world adapter (v5+)
+
+When `zr_sv_world_adapter == "kino_v1"`, the runtime can restore the stable Kino state introduced by v5:
 
 ```text
 zr_sv_kino_power
@@ -115,8 +130,6 @@ zr_sv_kino_curtains_done
 zr_sv_kino_teleporter_linked
 ```
 
-Matching `zombie_door` / `zombie_debris` entities and their stock route flags are reconstructed together.
-
 ## Persistence
 
 `install.ps1` registers the keys with `seta` in:
@@ -127,9 +140,14 @@ Matching `zombie_door` / `zombie_debris` entities and their stock route flags ar
 
 The first installer run creates `config.cfg.t5zr.bak`.
 
-## Validation
+## Resume validation
 
-Resume is rejected when the save is invalid, the format is not v6, the map differs or the saved round is invalid.
+Resume is rejected when:
+
+- `zr_sv_valid != 1`;
+- the format is not v5, v6 or v7;
+- saved map and current map differ;
+- saved round is invalid.
 
 ## Deliberately not stored
 
