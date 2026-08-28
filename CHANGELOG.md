@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0-beta.5 - 2026-08-28
+
+- Restore the original HUD layout: round time top-left, total time top-right, zombies remaining bottom-right.
+- Remove the beta.4 centered top bar and background.
+- Keep the overflow fix by using static labels plus numeric `SetValue()` elements.
+- Keep the autosave confirmation size unchanged from beta.4.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.4 - 2026-08-28
 
 - Redesign the safe HUD as one compact centered top bar.
