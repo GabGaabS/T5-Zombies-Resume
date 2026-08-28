@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.6 / save format v8
+// v0.8.0-beta.7 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -14,7 +14,7 @@
 // - optional corner HUD: round time, total run time and zombies remaining
 // - compact autosave toast at the top-center of the screen
 // - backward-compatible reader for legacy save formats v5, v6 and v7
-// - multi-level Pack-a-Punch for supported upgraded firearms
+// - multi-level Pack-a-Punch for supported upgraded firearms + selected Wonder Weapons
 // - persistent 4-slot coop roster keyed by GUID; absent players are never erased
 //
 // Saves are intentionally made at round boundaries. Mid-round zombies, active
@@ -406,6 +406,26 @@ zr_clear_flag(flag_name)
 // upgraded. T5ZR listens to the same machine trigger only for PAP level 2+.
 // -------------------------------------------------------------------------
 
+zr_multi_pap_is_special_weapon(weapon)
+{
+    if (!IsDefined(weapon))
+    {
+        return false;
+    }
+
+    return IsSubStr(weapon, "ray_gun") ||
+        IsSubStr(weapon, "tesla_gun") ||
+        IsSubStr(weapon, "thundergun") ||
+        IsSubStr(weapon, "freezegun");
+}
+
+zr_multi_pap_special_has_damage_bonus(weapon)
+{
+    // Ray Gun uses normal projectile damage. Winter's Howl/freezegun also
+    // has real health damage in addition to its freeze response.
+    return IsSubStr(weapon, "ray_gun") || IsSubStr(weapon, "freezegun");
+}
+
 zr_multi_pap_weapon_supported(weapon)
 {
     if (!IsDefined(weapon) || weapon == "" || weapon == "none")
@@ -413,13 +433,15 @@ zr_multi_pap_weapon_supported(weapon)
         return false;
     }
 
-    // Script-heavy / explosive wonder weapons have bespoke damage paths.
-    // Keep the first public beta limited to conventional firearms.
-    if (IsSubStr(weapon, "ray_gun") ||
-        IsSubStr(weapon, "tesla_gun") ||
-        IsSubStr(weapon, "thundergun") ||
-        IsSubStr(weapon, "freezegun") ||
-        IsSubStr(weapon, "microwavegun") ||
+    if (zr_multi_pap_is_special_weapon(weapon))
+    {
+        return GetDvarInt("zr_pap_special") == 1;
+    }
+
+    // These remain excluded until their bespoke explosive/effect paths get a
+    // dedicated policy. Selected Wonder Weapons above are handled separately.
+    if (IsSubStr(weapon, "microwavegun") ||
+        IsSubStr(weapon, "shrink_ray") ||
         IsSubStr(weapon, "crossbow") ||
         IsSubStr(weapon, "m72_law") ||
         IsSubStr(weapon, "china_lake") ||
@@ -430,6 +452,37 @@ zr_multi_pap_weapon_supported(weapon)
     }
 
     return true;
+}
+
+zr_multi_pap_damage_supported(weapon, mod)
+{
+    if (zr_multi_pap_is_special_weapon(weapon))
+    {
+        if (!zr_multi_pap_special_has_damage_bonus(weapon))
+        {
+            return false;
+        }
+
+        if (IsSubStr(weapon, "ray_gun"))
+        {
+            return mod == "MOD_PROJECTILE" ||
+                mod == "MOD_PROJECTILE_SPLASH" ||
+                mod == "MOD_EXPLOSIVE";
+        }
+
+        if (IsSubStr(weapon, "freezegun"))
+        {
+            return mod == "MOD_PROJECTILE" || mod == "MOD_EXPLOSIVE";
+        }
+
+        return false;
+    }
+
+    weapon_class = WeaponClass(weapon);
+
+    return mod == "MOD_RIFLE_BULLET" ||
+        mod == "MOD_PISTOL_BULLET" ||
+        weapon_class == "spread";
 }
 
 zr_multi_pap_get_level(weapon)
@@ -516,7 +569,23 @@ zr_multi_pap_scaled_value(base_value, pap_level, percent_per_level)
 
 zr_multi_pap_clip_target(weapon, pap_level)
 {
-    return zr_multi_pap_scaled_value(WeaponClipSize(weapon), pap_level, GetDvarInt("zr_pap_clip_percent"));
+    base_clip = WeaponClipSize(weapon);
+    target = zr_multi_pap_scaled_value(base_clip, pap_level, GetDvarInt("zr_pap_clip_percent"));
+
+    // Small-capacity Wonder Weapons (Thunder Gun / Wunderwaffe) can round a
+    // percentage bonus back down to the native clip. Guarantee at least one
+    // extra round per additional PAP level for selected special weapons.
+    if (zr_multi_pap_is_special_weapon(weapon) && pap_level > 1)
+    {
+        minimum_special_clip = base_clip + (pap_level - 1);
+
+        if (target < minimum_special_clip)
+        {
+            target = minimum_special_clip;
+        }
+    }
+
+    return target;
 }
 
 zr_multi_pap_stock_target(weapon, pap_level)
@@ -669,10 +738,7 @@ zr_multi_pap_damage_callback(mod, hit_location, hit_origin, player, amount)
         return false;
     }
 
-    // Only conventional firearm hit paths get bonus damage. This keeps
-    // launchers, scripted wonder weapons and alternate explosive modes stock.
-    weapon_class = WeaponClass(weapon);
-    if (mod != "MOD_RIFLE_BULLET" && mod != "MOD_PISTOL_BULLET" && weapon_class != "spread")
+    if (!zr_multi_pap_damage_supported(weapon, mod))
     {
         return false;
     }
@@ -689,6 +755,14 @@ zr_multi_pap_damage_callback(mod, hit_location, hit_origin, player, amount)
     if (bonus_damage < 1)
     {
         bonus_damage = 1;
+    }
+
+    // Winter's Howl tracks cumulative freeze damage separately from health.
+    // Add only the bonus projectile component here; stock code will add the
+    // original amount after this callback returns.
+    if (IsSubStr(weapon, "freezegun") && mod == "MOD_PROJECTILE" && IsDefined(self.freezegun_damage))
+    {
+        self.freezegun_damage += bonus_damage;
     }
 
     self.zr_multi_pap_bonus_guard = true;
@@ -765,8 +839,18 @@ zr_multi_pap_trigger()
         clip_bonus = (next_level - 1) * GetDvarInt("zr_pap_clip_percent");
         stock_bonus = (next_level - 1) * GetDvarInt("zr_pap_stock_percent");
 
-        player iPrintLnBold("^2T5ZR PAP " + next_level + "^7 - degats +" + damage_bonus + "% / chargeur +" + clip_bonus + "% / reserve +" + stock_bonus + "%");
-        println("[T5ZR] Multi-PAP " + player.name + " weapon=" + weapon + " level=" + next_level + " cost=" + cost);
+        if (zr_multi_pap_is_special_weapon(weapon) && !zr_multi_pap_special_has_damage_bonus(weapon))
+        {
+            player iPrintLnBold("^2T5ZR PAP " + next_level + "^7 - Wonder Weapon: munitions ameliorees");
+        }
+        else
+        {
+            player iPrintLnBold("^2T5ZR PAP " + next_level + "^7 - degats +" + damage_bonus + "% / chargeur +" + clip_bonus + "% / reserve +" + stock_bonus + "%");
+        }
+
+        println("[T5ZR] Multi-PAP " + player.name + " weapon=" + weapon + " level=" + next_level + " cost=" + cost +
+            " special=" + zr_bool_string(zr_multi_pap_is_special_weapon(weapon)) +
+            " damage_bonus=" + zr_bool_string(zr_multi_pap_damage_supported(weapon, "MOD_PROJECTILE")));
     }
 }
 
@@ -1307,7 +1391,7 @@ zr_print_status()
     println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume") + " preserve_roster=" + level.zr_preserve_saved_roster);
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
     println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud"));
-    println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
+    println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " special=" + GetDvar("zr_pap_special") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
 
     roster_count = zr_saved_roster_count();
     for (slot = 0; slot < roster_count; slot++)
@@ -2096,7 +2180,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.6";
+    level.zr_mod_version = "0.8.0-beta.7";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2130,6 +2214,8 @@ main()
 
     if (GetDvar("zr_pap_multi") == "")
         SetDvar("zr_pap_multi", "1");
+    if (GetDvar("zr_pap_special") == "")
+        SetDvar("zr_pap_special", "1");
     if (GetDvar("zr_pap_max_level") == "")
         SetDvar("zr_pap_max_level", "5");
     if (GetDvar("zr_pap_cost_base") == "")
@@ -2150,5 +2236,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, small classic corner HUD + verified weapon restore + persistent roster)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, Wonder Weapon multi-PAP + small safe HUD + persistent roster)");
 }
