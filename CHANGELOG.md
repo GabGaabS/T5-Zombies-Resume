@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0-beta.3 - 2026-08-28
+
+- Fix `G_FindConfigstringIndex: overflow` caused by continuously changing HUD strings.
+- Replace live round-time, total-time and zombies-remaining text updates with static labels plus numeric `SetValue()` elements.
+- Keep the HUD safe for long sessions without consuming a new configstring every refresh.
+- Reduce the autosave confirmation to a much smaller static top-center message.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.2 - 2026-08-28
 
 - Preserve absent players in a persistent four-slot coop roster keyed by GUID.
