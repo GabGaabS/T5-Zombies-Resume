@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.1 / save format v8
+// v0.8.0-beta.2 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -15,6 +15,7 @@
 // - compact autosave toast at the top-center of the screen
 // - backward-compatible reader for legacy save formats v5, v6 and v7
 // - multi-level Pack-a-Punch for supported upgraded firearms
+// - persistent 4-slot coop roster keyed by GUID; absent players are never erased
 //
 // Saves are intentionally made at round boundaries. Mid-round zombies, active
 // powerups, temporary trap/cooldown timers and RNG are not snapshots.
@@ -995,6 +996,126 @@ zr_save_round_scheduler()
     zr_store("zr_sv_dog_round_active", zr_bool_string(zr_flag_is_set("dog_round")));
 }
 
+
+zr_saved_roster_count()
+{
+    count = GetDvarInt("zr_sv_player_count");
+
+    if (count < 0)
+    {
+        count = 0;
+    }
+
+    if (count > 4)
+    {
+        count = 4;
+    }
+
+    return count;
+}
+
+zr_find_roster_slot_by_guid(guid, roster_count)
+{
+    if (!IsDefined(guid) || guid == "" || guid == "0")
+    {
+        return -1;
+    }
+
+    if (!IsDefined(roster_count))
+    {
+        roster_count = zr_saved_roster_count();
+    }
+
+    if (roster_count > 4)
+    {
+        roster_count = 4;
+    }
+
+    for (i = 0; i < roster_count; i++)
+    {
+        saved_guid = GetDvar(zr_player_key(i, "guid"));
+
+        if (saved_guid != "" && saved_guid == guid)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+zr_prepare_fresh_roster_if_needed()
+{
+    if (level.zr_roster_initialized)
+    {
+        return;
+    }
+
+    // A normal fresh Start Match starts a new campaign roster. A resumed
+    // session sets zr_preserve_saved_roster before the first autosave, so
+    // absent saved players survive unchanged.
+    if (!level.zr_preserve_saved_roster)
+    {
+        for (i = 0; i < 4; i++)
+        {
+            zr_clear_saved_player(i);
+        }
+
+        zr_store("zr_sv_player_count", "0");
+        println("[T5ZR] Fresh session: starting a new saved-player roster.");
+    }
+
+    level.zr_roster_initialized = true;
+}
+
+zr_save_roster_players(players)
+{
+    zr_prepare_fresh_roster_if_needed();
+
+    roster_count = zr_saved_roster_count();
+
+    for (i = 0; i < players.size; i++)
+    {
+        player = players[i];
+        guid = zr_player_guid(player);
+
+        if (guid == "" || guid == "0")
+        {
+            println("[T5ZR] Roster guest: " + player.name + " has no usable GUID; save slot not modified.");
+            continue;
+        }
+
+        slot = zr_find_roster_slot_by_guid(guid, roster_count);
+
+        if (slot < 0)
+        {
+            if (roster_count >= 4)
+            {
+                println("[T5ZR] Roster full: " + player.name + " is a guest and will not replace an existing saved player.");
+
+                if (!IsDefined(player.zr_roster_full_announced))
+                {
+                    player.zr_roster_full_announced = true;
+                    player iPrintLnBold("^3T5ZR:^7 roster plein - joueur guest, aucune save remplacee");
+                }
+
+                continue;
+            }
+
+            slot = roster_count;
+            roster_count++;
+
+            println("[T5ZR] Roster: added " + player.name + " to persistent slot " + slot + ".");
+        }
+
+        zr_save_player(slot, player);
+    }
+
+    zr_store("zr_sv_player_count", "" + roster_count);
+
+    return roster_count;
+}
+
 zr_save_game(reason)
 {
     if (!IsDefined(level.round_number))
@@ -1005,12 +1126,6 @@ zr_save_game(reason)
     }
 
     players = GetPlayers();
-    player_count = players.size;
-
-    if (player_count > 4)
-    {
-        player_count = 4;
-    }
 
     zr_store("zr_sv_valid", "0");
     zr_store("zr_sv_format", "8");
@@ -1018,27 +1133,16 @@ zr_save_game(reason)
     zr_store("zr_sv_map", zr_current_map());
     zr_store("zr_sv_round", "" + level.round_number);
     zr_store("zr_sv_reason", reason);
-    zr_store("zr_sv_player_count", "" + player_count);
     zr_store("zr_sv_total_time_seconds", "" + zr_total_elapsed_seconds());
 
     zr_save_round_scheduler();
     zr_save_world();
 
-    for (i = 0; i < 4; i++)
-    {
-        if (i < player_count)
-        {
-            zr_save_player(i, players[i]);
-        }
-        else
-        {
-            zr_clear_saved_player(i);
-        }
-    }
+    roster_count = zr_save_roster_players(players);
 
     zr_store("zr_sv_valid", "1");
 
-    println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + "), players=" + player_count + ", world=" + GetDvar("zr_sv_world_adapter"));
+    println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + "), connected=" + players.size + ", roster=" + roster_count + ", world=" + GetDvar("zr_sv_world_adapter"));
     zr_show_save_toast("^2T5ZR:^7 sauvegarde OK - prochaine manche " + level.round_number);
 }
 
@@ -1081,7 +1185,7 @@ zr_print_status()
 {
     println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + level.round_number);
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
-    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume"));
+    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume") + " preserve_roster=" + level.zr_preserve_saved_roster);
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
     println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud"));
     println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
@@ -1124,12 +1228,7 @@ zr_find_saved_slot(player)
         return -1;
     }
 
-    player_count = GetDvarInt("zr_sv_player_count");
-
-    if (player_count > 4)
-    {
-        player_count = 4;
-    }
+    player_count = zr_saved_roster_count();
 
     for (i = 0; i < player_count; i++)
     {
@@ -1703,6 +1802,8 @@ zr_prepare_resume()
     level.zr_pending_resume = true;
     level.zr_suppress_autosave = true;
     level.zr_resume_save_format = save_format;
+    level.zr_preserve_saved_roster = true;
+    level.zr_roster_initialized = true;
 
     if (save_format >= 7)
     {
@@ -1760,12 +1861,14 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.1";
+    level.zr_mod_version = "0.8.0-beta.2";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
     level.zr_total_time_base_seconds = 0;
     level.zr_session_start_time = 0;
+    level.zr_preserve_saved_roster = false;
+    level.zr_roster_initialized = false;
     level.zr_slot_claimed = [];
 
     for (i = 0; i < 4; i++)
