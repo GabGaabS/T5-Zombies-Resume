@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-beta.4 - 2026-08-28
+
+- Redesign the safe HUD as one compact centered top bar.
+- Keep all changing round-time, total-time and zombie-count values on numeric `SetValue()` elements.
+- Move and further shrink the autosave confirmation so it no longer dominates the screen.
+- Synchronize restored primary weapons with BO1 Zombies weapon ownership bookkeeping.
+- Re-check the saved primary inventory after stock spawn/loadout threads settle and remove stray starter primaries.
+- Log `Restore inventory verified: expected=N actual=N` after resume.
+- Fix the optional Resume button installation for current Plutonium T5 by installing it as a mod using `ui/mod.txt`.
+- Remove the obsolete loose `storage\t5\ui` T5ZR override when installing the new menu mod.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.3 - 2026-08-28
 
 - Fix `G_FindConfigstringIndex: overflow` caused by continuously changing HUD strings.
