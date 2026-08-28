@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-beta.7 - 2026-08-28
+
+- Add guarded multi-PAP support for selected Wonder Weapons.
+- Ray Gun: extra PAP levels scale projectile/explosion damage, effective clip and reserve.
+- Winter's Howl/freezegun: extra PAP levels scale raw damage, cumulative freeze damage, effective clip and reserve while preserving stock freeze/shatter logic.
+- Thunder Gun: extra PAP levels improve clip/reserve only; scripted fling/instakill behavior remains stock.
+- Wunderwaffe/Tesla Gun: extra PAP levels improve clip/reserve only; scripted chain-kill behavior remains stock.
+- Guarantee at least +1 effective clip round per extra PAP level for low-capacity supported Wonder Weapons.
+- Add archived toggle `zr_pap_special` (default 1).
+- Keep Shrink Ray, Wave/Microwave Gun, explosive crossbow, launchers, ballistic knife and Mustang & Sally excluded pending dedicated policies.
+- Keep save format v8 unchanged; existing per-weapon PAP levels already persist.
+
 ## 0.8.0-beta.6 - 2026-08-28
 
 - Reduce the corner HUD font scale from 0.45 to 0.15 (3x smaller).
