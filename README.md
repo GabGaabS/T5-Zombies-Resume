@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.3-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.4-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.3` fixes the long-run HUD configstring overflow while keeping the persistent coop roster and multi-level Pack-a-Punch.
+`0.8.0-beta.4` polishes the safe HUD, verifies restored weapon inventories, and fixes the optional Resume button installation for current Plutonium T5 menu loading.
 
 The save layer already covers:
 
@@ -22,7 +22,7 @@ The save layer already covers:
 - Bowie/melee state and tactical grenades (including cymbal monkeys);
 - perks;
 - persistent total run time;
-- optional corner HUD with round time, total time and zombies remaining;
+- compact top HUD bar with round time, total time and zombies remaining;
 - multi-level Pack-a-Punch for supported upgraded firearms;
 - coop scoreboard kills/headshots/downs/revives;
 - strict per-player matching through `GetGuid()`;
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.3 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.4 loaded
 ```
 
 ### Optional Resume Game button
@@ -128,24 +128,43 @@ To add **T5ZR - RESUME GAME** to the private Zombies lobby:
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallMenu
 ```
 
-The menu integration is optional because T5 UI overrides can conflict with other menu mods.
+Current Plutonium T5 loads custom `.menu` overrides through a loaded **mod** using `ui/mod.txt`. The installer therefore creates:
 
-The installer:
+```text
+%LOCALAPPDATA%\Plutonium\storage\t5\mods\t5zr_resume_menu\
+```
 
-1. downloads the pinned public `xboxlive_privatelobby.menu` raw asset from Plutonium's `client-raw-assets` repository;
-2. applies the small T5ZR patch locally;
-3. backs up an existing custom lobby menu before replacing it;
-4. writes the generated override to the local T5 `ui` folder.
+After installation:
 
-T5ZR does **not** redistribute Plutonium's full menu asset in this repository.
+1. start Plutonium T5;
+2. from the Black Ops main menu open **MODS**;
+3. select and load **t5zr_resume_menu**;
+4. enter Zombies and create/open the private lobby;
+5. as host, **T5ZR - RESUME GAME** should be visible.
 
-Remove the T5ZR menu layer and restore the previous menu with:
+The button is deliberately visible to the private-lobby host whenever the menu mod is loaded. Clicking it only starts a resume when the archived T5ZR save is valid and supported. This makes it easy to distinguish a menu-loading problem from a save-validation problem.
+
+The installer downloads the pinned public `xboxlive_privatelobby.menu` asset from Plutonium, applies the small T5ZR patch locally, and creates a `ui/mod.txt` MenuList. T5ZR does **not** redistribute Plutonium's full menu asset in this repository.
+
+Remove the T5ZR menu mod with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -RemoveMenu
 ```
 
 The GSC/save runtime remains installed.
+
+## Weapon restore verification
+
+On resume, T5ZR now keeps BO1 Zombies' weapon ownership bookkeeping synchronized when rebuilding saved primaries. After the spawn/loadout threads settle, it removes stray starter primaries, re-applies every saved primary if needed, restores exact clip/reserve ammo and re-selects the saved current weapon.
+
+The console prints:
+
+```text
+[T5ZR] Restore inventory verified: expected=N actual=N.
+```
+
+For a normal two-weapon loadout, the expected successful result is `expected=2 actual=2`. With Mule Kick and three saved primaries, it should be `3/3`.
 
 ## Persistent coop roster
 
@@ -163,7 +182,7 @@ A normal fresh **Start Match** starts a new campaign roster on its first save, s
 
 ## Using the menu
 
-When a valid v5, v6, v7 or v8 save exists and you are the private-lobby host, a new button should appear:
+After loading the **t5zr_resume_menu** mod, the private-lobby host should see:
 
 ```text
 T5ZR - RESUME GAME
@@ -188,11 +207,13 @@ map_restart
 
 ## HUD
 
-The HUD is enabled by default:
+The HUD is enabled by default as one compact bar centered at the top of the screen:
 
-- top-left: current round time;
-- top-right: total run time (continued after a resume);
-- bottom-right: zombies remaining (alive + still waiting to spawn).
+```text
+Manche 9:07 | Total 0:09:07 | Zombies 9
+```
+
+The values still use numeric HUD elements rather than continuously changing text strings, so the layout remains safe from the `G_FindConfigstringIndex: overflow` issue.
 
 Console toggles:
 
@@ -204,7 +225,7 @@ set zr_hud_total_time 0/1
 set zr_hud_zombies 0/1
 ```
 
-Autosave confirmation now uses a much smaller top-center HUD message.
+Autosave confirmation is shown in a very small line just below the top HUD bar.
 
 The live HUD is configstring-safe: changing timers and zombie counts use numeric `SetValue()` elements instead of continuously creating new `SetText()` strings. This fixes the `G_FindConfigstringIndex: overflow` crash seen on longer runs.
 
@@ -258,10 +279,11 @@ Runtime:
 %localappdata%\Plutonium\storage\t5\scripts\sp\zom\zombie_resume.gsc
 ```
 
-Optional generated menu override:
+Optional generated menu mod:
 
 ```text
-%localappdata%\Plutonium\storage\t5\ui\xboxlive_privatelobby.menu
+%localappdata%\Plutonium\storage\t5\mods\t5zr_resume_menu\ui\mod.txt
+%localappdata%\Plutonium\storage\t5\mods\t5zr_resume_menu\ui\xboxlive_privatelobby.menu
 ```
 
 Persistent save dvars:
@@ -282,7 +304,7 @@ Not currently reconstructed:
 - RNG state;
 - full map-specific world state outside implemented adapters.
 
-The multi-PAP ammo scaling, revised numeric HUD and optional menu integration need continued real r5346 validation before being called stable.
+The multi-PAP ammo scaling, verified weapon restoration, revised HUD and new mod-based menu integration need continued real r5346 validation before being called stable.
 
 ## Plutonium r5346
 
