@@ -33,7 +33,7 @@ $UiDir = Join-Path $T5Root "ui"
 $MenuTarget = Join-Path $UiDir "xboxlive_privatelobby.menu"
 $MenuBackupPath = Join-Path $UiDir "xboxlive_privatelobby.menu.t5zr.preexisting.bak"
 
-$Version = "0.8.0-beta.2"
+$Version = "0.8.0-beta.3"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -191,7 +191,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.2 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.3 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
