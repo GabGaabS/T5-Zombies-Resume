@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.2 / save format v8
+// v0.8.0-beta.3 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -152,7 +152,7 @@ zr_zombies_remaining()
     return remaining;
 }
 
-zr_save_toast_player(message)
+zr_save_toast_player()
 {
     self endon("disconnect");
 
@@ -162,28 +162,30 @@ zr_save_toast_player(message)
     hud.alignX = "center";
     hud.alignY = "top";
     hud.x = 0;
-    hud.y = 18;
+    hud.y = 10;
     hud.foreground = true;
     hud.sort = 100;
     hud.font = "default";
-    hud.fontScale = 0.8;
+    hud.fontScale = 0.4;
     hud.alpha = 1;
-    hud SetText(message);
 
-    wait 2.0;
-    hud FadeOverTime(0.25);
+    // Static text only: changing SetText strings allocates T5 configstrings.
+    hud SetText("^2T5ZR:^7 sauvegarde OK");
+
+    wait 1.5;
+    hud FadeOverTime(0.20);
     hud.alpha = 0;
-    wait 0.25;
+    wait 0.20;
     hud Destroy();
 }
 
-zr_show_save_toast(message)
+zr_show_save_toast()
 {
     players = GetPlayers();
 
     for (i = 0; i < players.size; i++)
     {
-        players[i] thread zr_save_toast_player(message);
+        players[i] thread zr_save_toast_player();
     }
 }
 
@@ -199,19 +201,75 @@ zr_create_corner_hud(horz_align, vert_align, align_x, align_y, x, y)
     hud.foreground = true;
     hud.sort = 90;
     hud.font = "default";
-    hud.fontScale = 1.0;
+    hud.fontScale = 0.75;
     hud.alpha = 0;
 
     return hud;
+}
+
+zr_set_hud_group_alpha(elements, value)
+{
+    for (i = 0; i < elements.size; i++)
+    {
+        elements[i].alpha = value;
+    }
 }
 
 zr_hud_loop()
 {
     self endon("disconnect");
 
-    round_hud = self zr_create_corner_hud("left", "top", "left", "top", 12, 12);
-    total_hud = self zr_create_corner_hud("right", "top", "right", "top", -12, 12);
-    zombies_hud = self zr_create_corner_hud("right", "bottom", "right", "bottom", -12, -70);
+    // IMPORTANT: never feed continuously-changing strings to SetText().
+    // BO1 stores each unique HUD string in a finite configstring table.
+    // Static labels + SetValue() keep the HUD safe for arbitrarily long runs.
+
+    round_label = self zr_create_corner_hud("left", "top", "left", "top", 12, 12);
+    round_min = self zr_create_corner_hud("left", "top", "left", "top", 70, 12);
+    round_m_label = self zr_create_corner_hud("left", "top", "left", "top", 91, 12);
+    round_sec = self zr_create_corner_hud("left", "top", "left", "top", 108, 12);
+    round_s_label = self zr_create_corner_hud("left", "top", "left", "top", 129, 12);
+
+    round_label SetText("Manche");
+    round_m_label SetText("m");
+    round_s_label SetText("s");
+
+    round_group = [];
+    round_group[0] = round_label;
+    round_group[1] = round_min;
+    round_group[2] = round_m_label;
+    round_group[3] = round_sec;
+    round_group[4] = round_s_label;
+
+    total_label = self zr_create_corner_hud("right", "top", "right", "top", -170, 12);
+    total_hour = self zr_create_corner_hud("right", "top", "right", "top", -118, 12);
+    total_h_label = self zr_create_corner_hud("right", "top", "right", "top", -100, 12);
+    total_min = self zr_create_corner_hud("right", "top", "right", "top", -78, 12);
+    total_m_label = self zr_create_corner_hud("right", "top", "right", "top", -58, 12);
+    total_sec = self zr_create_corner_hud("right", "top", "right", "top", -34, 12);
+    total_s_label = self zr_create_corner_hud("right", "top", "right", "top", -12, 12);
+
+    total_label SetText("Total");
+    total_h_label SetText("h");
+    total_m_label SetText("m");
+    total_s_label SetText("s");
+
+    total_group = [];
+    total_group[0] = total_label;
+    total_group[1] = total_hour;
+    total_group[2] = total_h_label;
+    total_group[3] = total_min;
+    total_group[4] = total_m_label;
+    total_group[5] = total_sec;
+    total_group[6] = total_s_label;
+
+    zombies_label = self zr_create_corner_hud("right", "bottom", "right", "bottom", -58, -70);
+    zombies_value = self zr_create_corner_hud("right", "bottom", "right", "bottom", -12, -70);
+
+    zombies_label SetText("Zombies");
+
+    zombies_group = [];
+    zombies_group[0] = zombies_label;
+    zombies_group[1] = zombies_value;
 
     for (;;)
     {
@@ -219,32 +277,44 @@ zr_hud_loop()
 
         if (hud_enabled && GetDvarInt("zr_hud_round_time") == 1)
         {
-            round_hud.alpha = 1;
-            round_hud SetText("Manche: " + zr_format_time(zr_round_elapsed_seconds()));
+            round_seconds = zr_round_elapsed_seconds();
+            round_minutes = Int(round_seconds / 60);
+            round_seconds = round_seconds - (round_minutes * 60);
+
+            round_min SetValue(round_minutes);
+            round_sec SetValue(round_seconds);
+            zr_set_hud_group_alpha(round_group, 1);
         }
         else
         {
-            round_hud.alpha = 0;
+            zr_set_hud_group_alpha(round_group, 0);
         }
 
         if (hud_enabled && GetDvarInt("zr_hud_total_time") == 1)
         {
-            total_hud.alpha = 1;
-            total_hud SetText("Total: " + zr_format_time(zr_total_elapsed_seconds()));
+            total_seconds = zr_total_elapsed_seconds();
+            total_hours = Int(total_seconds / 3600);
+            total_minutes = Int((total_seconds - (total_hours * 3600)) / 60);
+            total_seconds = total_seconds - (total_hours * 3600) - (total_minutes * 60);
+
+            total_hour SetValue(total_hours);
+            total_min SetValue(total_minutes);
+            total_sec SetValue(total_seconds);
+            zr_set_hud_group_alpha(total_group, 1);
         }
         else
         {
-            total_hud.alpha = 0;
+            zr_set_hud_group_alpha(total_group, 0);
         }
 
         if (hud_enabled && GetDvarInt("zr_hud_zombies") == 1)
         {
-            zombies_hud.alpha = 1;
-            zombies_hud SetText("Zombies: " + zr_zombies_remaining());
+            zombies_value SetValue(zr_zombies_remaining());
+            zr_set_hud_group_alpha(zombies_group, 1);
         }
         else
         {
-            zombies_hud.alpha = 0;
+            zr_set_hud_group_alpha(zombies_group, 0);
         }
 
         wait 0.25;
@@ -1143,7 +1213,7 @@ zr_save_game(reason)
     zr_store("zr_sv_valid", "1");
 
     println("[T5ZR] Saved " + zr_current_map() + " -> round " + level.round_number + " (" + reason + "), connected=" + players.size + ", roster=" + roster_count + ", world=" + GetDvar("zr_sv_world_adapter"));
-    zr_show_save_toast("^2T5ZR:^7 sauvegarde OK - prochaine manche " + level.round_number);
+    zr_show_save_toast();
 }
 
 zr_watch_round_number()
@@ -1861,7 +1931,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.2";
+    level.zr_mod_version = "0.8.0-beta.3";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -1915,5 +1985,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, multi-PAP + HUD + offhand + scoreboard + dog scheduler + Kino world)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, configstring-safe HUD + multi-PAP + persistent roster)");
 }
