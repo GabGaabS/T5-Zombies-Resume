@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.6-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.7-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.6` keeps the classic corner layout but reduces the HUD scale by three times and tightens the split numeric elements, while retaining the overflow fix.
+`0.8.0-beta.7` adds guarded multi-PAP support for selected Wonder Weapons while keeping save format v8 and the small overflow-safe HUD.
 
 The save layer already covers:
 
@@ -22,8 +22,8 @@ The save layer already covers:
 - Bowie/melee state and tactical grenades (including cymbal monkeys);
 - perks;
 - persistent total run time;
-- compact top HUD bar with round time, total time and zombies remaining;
-- multi-level Pack-a-Punch for supported upgraded firearms;
+- small corner HUD with round time, total time and zombies remaining;
+- multi-level Pack-a-Punch for supported upgraded firearms and selected Wonder Weapons;
 - coop scoreboard kills/headshots/downs/revives;
 - strict per-player matching through `GetGuid()`;
 - persistent 4-slot coop roster: absent players keep their last saved state; new players only take free slots;
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.6 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.7 loaded
 ```
 
 ### Optional Resume Game button
@@ -247,6 +247,7 @@ The percentages are additive relative to the stock PAP weapon. Settings are arch
 
 ```text
 set zr_pap_multi 0/1
+set zr_pap_special 0/1
 set zr_pap_max_level 5
 set zr_pap_cost_base 7500
 set zr_pap_cost_step 2500
@@ -255,7 +256,24 @@ set zr_pap_clip_percent 15
 set zr_pap_stock_percent 20
 ```
 
-The first beta intentionally excludes script-heavy/explosive special weapons such as Ray Gun, Wunderwaffe/Tesla, Thunder Gun, Winter's Howl/freezegun, launchers, explosive crossbow, ballistic knife and Mustang & Sally. Conventional rifles, SMGs, LMGs, pistols and shotguns are the target.
+### Wonder Weapon profiles
+
+Selected special weapons now use a guarded profile instead of blindly applying the normal firearm logic:
+
+| Weapon | Multi-PAP | Extra damage | Clip/reserve | Native special effect |
+| --- | --- | --- | --- | --- |
+| Ray Gun | yes | yes | yes | unchanged |
+| Winter's Howl / freezegun | yes | yes | yes | freeze logic preserved |
+| Thunder Gun | yes | no — close-range fling is already scripted lethal | yes | unchanged |
+| Wunderwaffe / Tesla Gun | yes | no — chain kills are script-driven | yes | unchanged |
+
+For low-capacity Wonder Weapons, T5ZR guarantees at least **+1 effective clip round per extra PAP level** when the configured percentage would otherwise round back down to the native clip size.
+
+Ray Gun bonus damage is applied only to its normal projectile/explosion damage path. Winter's Howl gets additional raw health damage and its cumulative freeze-damage tracker is increased by the same bonus, while the stock freeze/shatter behavior still runs normally.
+
+Thunder Gun and Wunderwaffe deliberately receive **ammo improvements only**: their signature kill effects use bespoke scripts that already bypass ordinary weapon damage, so multiplying a normal damage number would either do nothing or risk duplicate behavior.
+
+Still excluded for now: Shrink Ray, Wave/Microwave Gun, explosive crossbow, launchers, ballistic knife and Mustang & Sally. Those need separate policies before they are safe to enable.
 
 The enlarged magazine is implemented in GSC by restoring the configured effective capacity after a normal reload while consuming the corresponding reserve ammo. T5ZR logs a warning if the r5346 engine clamps a requested clip/reserve value; that behavior still needs real-game validation.
 
