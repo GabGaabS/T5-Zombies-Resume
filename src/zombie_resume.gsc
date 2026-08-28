@@ -1315,6 +1315,16 @@ zr_print_status()
     println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud"));
     println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
 
+    roster_count = zr_saved_roster_count();
+    for (slot = 0; slot < roster_count; slot++)
+    {
+        println("[T5ZR] roster_slot=" + slot + " name=" + GetDvar(zr_player_key(slot, "name")) +
+            " weapons=" + GetDvar(zr_player_key(slot, "weapon_count")) +
+            " w0=" + GetDvar(zr_weapon_key(slot, 0, "name")) +
+            " w1=" + GetDvar(zr_weapon_key(slot, 1, "name")) +
+            " w2=" + GetDvar(zr_weapon_key(slot, 2, "name")));
+    }
+
     zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
 }
 
