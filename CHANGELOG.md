@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-beta.6 - 2026-08-28
+
+- Reduce the corner HUD font scale from 0.45 to 0.15 (3x smaller).
+- Tighten the split numeric element spacing to match the smaller font.
+- Keep the autosave confirmation size unchanged.
+- Keep the configstring-overflow fix and save format v8 unchanged.
+
 ## 0.8.0-beta.5 - 2026-08-28
 
 - Restore the original HUD layout: round time top-left, total time top-right, zombies remaining bottom-right.
