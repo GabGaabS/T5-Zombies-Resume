@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.2-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.3-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.2` keeps multi-level Pack-a-Punch and adds a persistent GUID-keyed coop roster so absent players keep their saved loadout.
+`0.8.0-beta.3` fixes the long-run HUD configstring overflow while keeping the persistent coop roster and multi-level Pack-a-Punch.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.2 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.3 loaded
 ```
 
 ### Optional Resume Game button
@@ -204,7 +204,9 @@ set zr_hud_total_time 0/1
 set zr_hud_zombies 0/1
 ```
 
-Autosave confirmation now uses a compact top-center HUD message instead of the large bold center message.
+Autosave confirmation now uses a much smaller top-center HUD message.
+
+The live HUD is configstring-safe: changing timers and zombie counts use numeric `SetValue()` elements instead of continuously creating new `SetText()` strings. This fixes the `G_FindConfigstringIndex: overflow` crash seen on longer runs.
 
 ## Multi-level Pack-a-Punch
 
@@ -280,7 +282,7 @@ Not currently reconstructed:
 - RNG state;
 - full map-specific world state outside implemented adapters.
 
-The multi-PAP ammo scaling, HUD/offhand additions and optional menu integration need continued real r5346 validation before being called stable.
+The multi-PAP ammo scaling, revised numeric HUD and optional menu integration need continued real r5346 validation before being called stable.
 
 ## Plutonium r5346
 
