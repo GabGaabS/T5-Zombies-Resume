@@ -30,10 +30,18 @@ $SpScriptsDir = Join-Path $T5Root "scripts\sp"
 $ZombiesScriptsDir = Join-Path $SpScriptsDir "zom"
 $ScriptTarget = Join-Path $ZombiesScriptsDir "zombie_resume.gsc"
 $UiDir = Join-Path $T5Root "ui"
-$MenuTarget = Join-Path $UiDir "xboxlive_privatelobby.menu"
-$MenuBackupPath = Join-Path $UiDir "xboxlive_privatelobby.menu.t5zr.preexisting.bak"
+$LegacyMenuTarget = Join-Path $UiDir "xboxlive_privatelobby.menu"
+$LegacyMenuBackupPath = Join-Path $UiDir "xboxlive_privatelobby.menu.t5zr.preexisting.bak"
 
-$Version = "0.8.0-beta.3"
+# r5340+ loads T5 .menu overrides through a loaded fs_game mod using ui/mod.txt.
+$ModsDir = Join-Path $T5Root "mods"
+$MenuModName = "t5zr_resume_menu"
+$MenuModDir = Join-Path $ModsDir $MenuModName
+$MenuModUiDir = Join-Path $MenuModDir "ui"
+$MenuTarget = Join-Path $MenuModUiDir "xboxlive_privatelobby.menu"
+$MenuListTarget = Join-Path $MenuModUiDir "mod.txt"
+
+$Version = "0.8.0-beta.4"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -59,31 +67,36 @@ if ($InstallMenu -and $RemoveMenu) {
 }
 
 if ($RemoveMenu) {
-    if (Test-Path $MenuTarget) {
-        $currentMenuText = Get-Content -Path $MenuTarget -Raw -ErrorAction SilentlyContinue
-        if ($null -eq $currentMenuText) {
-            $currentMenuText = ""
+    if (Test-Path $MenuModDir) {
+        $currentMenuText = ""
+        if (Test-Path $MenuTarget) {
+            $currentMenuText = Get-Content -Path $MenuTarget -Raw -ErrorAction SilentlyContinue
+            if ($null -eq $currentMenuText) { $currentMenuText = "" }
         }
 
         if ($currentMenuText -match "T5ZR_MENU_OVERRIDE") {
-            Remove-Item $MenuTarget -Force
-            Write-Host "[T5ZR] Menu T5ZR supprime -> $MenuTarget"
-
-            if (Test-Path $MenuBackupPath) {
-                Move-Item -Path $MenuBackupPath -Destination $MenuTarget -Force
-                Write-Host "[T5ZR] Menu precedent restaure -> $MenuTarget"
-            }
+            Remove-Item $MenuModDir -Recurse -Force
+            Write-Host "[T5ZR] Mod menu T5ZR supprime -> $MenuModDir"
         }
         else {
-            Write-Warning "Le menu actuellement installe n'est pas celui de T5ZR ; aucune suppression effectuee."
+            Write-Warning "Le dossier $MenuModDir existe mais ne ressemble pas au mod menu T5ZR ; aucune suppression automatique."
         }
     }
-    elseif (Test-Path $MenuBackupPath) {
-        Move-Item -Path $MenuBackupPath -Destination $MenuTarget -Force
-        Write-Host "[T5ZR] Menu precedent restaure -> $MenuTarget"
-    }
-    else {
-        Write-Host "[T5ZR] Aucun menu T5ZR a supprimer."
+
+    # Clean up the obsolete pre-r5340 loose-menu install if it was created by T5ZR.
+    if (Test-Path $LegacyMenuTarget) {
+        $legacyText = Get-Content -Path $LegacyMenuTarget -Raw -ErrorAction SilentlyContinue
+        if ($null -eq $legacyText) { $legacyText = "" }
+
+        if ($legacyText -match "T5ZR_MENU_OVERRIDE") {
+            Remove-Item $LegacyMenuTarget -Force
+            Write-Host "[T5ZR] Ancien menu loose T5ZR supprime -> $LegacyMenuTarget"
+
+            if (Test-Path $LegacyMenuBackupPath) {
+                Move-Item -Path $LegacyMenuBackupPath -Destination $LegacyMenuTarget -Force
+                Write-Host "[T5ZR] Menu loose precedent restaure -> $LegacyMenuTarget"
+            }
+        }
     }
 
     Write-Host "[T5ZR] Suppression du menu terminee. Le runtime GSC n'a pas ete desinstalle."
@@ -121,6 +134,7 @@ function Build-T5ZRMenuOverride {
 				exec "xpartygo";
 
 		#define SETUP_ACTION_T5ZR_RESUME \
+				if( T5ZR_CAN_RESUME ) { \
 				if( dvarString( zr_sv_map ) == "zombie_theater" ) { setdvar ui_mapname "zombie_theater"; } \
 				if( dvarString( zr_sv_map ) == "zombie_pentagon" ) { setdvar ui_mapname "zombie_pentagon"; } \
 				if( dvarString( zr_sv_map ) == "zombie_cosmodrome" ) { setdvar ui_mapname "zombie_cosmodrome"; } \
@@ -133,7 +147,8 @@ function Build-T5ZRMenuOverride {
 				if( dvarString( zr_sv_map ) == "zombie_cod5_factory" ) { setdvar ui_mapname "zombie_cod5_factory"; } \
 				setdvar ui_gametype "zom"; \
 				setdvar zr_resume "1"; \
-				exec "xpartygo";
+				exec "xpartygo"; \
+				}
 '@
 
     if (-not $menu.Contains($startMacro)) {
@@ -183,7 +198,7 @@ function Build-T5ZRMenuOverride {
 										SETUP_ACTION_T5ZR_RESUME,
 										exec set ui_hint_text "Resume the saved T5ZR Zombies session"; exec set ui_show_arrow 1;,
 										CLEARUIHINT,
-										T5ZR_CAN_RESUME )
+										IS_LOBBY_HOST )
 '@
 
     if (-not $menu.Contains($minPlayersBlock)) {
@@ -191,26 +206,25 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.3 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.4 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
-    New-Item -ItemType Directory -Path $UiDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $MenuModUiDir -Force | Out-Null
 
-    if (Test-Path $MenuTarget) {
-        $existingMenuText = Get-Content -Path $MenuTarget -Raw -ErrorAction SilentlyContinue
-        if ($null -eq $existingMenuText) {
-            $existingMenuText = ""
-        }
+    # Remove only our obsolete loose override. Current Plutonium T5 expects
+    # menu overrides inside a loaded mod (ui/mod.txt), not storage\t5\ui.
+    if (Test-Path $LegacyMenuTarget) {
+        $legacyMenuText = Get-Content -Path $LegacyMenuTarget -Raw -ErrorAction SilentlyContinue
+        if ($null -eq $legacyMenuText) { $legacyMenuText = "" }
 
-        if ($existingMenuText -notmatch "T5ZR_MENU_OVERRIDE") {
-            if (-not (Test-Path $MenuBackupPath)) {
-                Copy-Item -Path $MenuTarget -Destination $MenuBackupPath -Force
-                Write-Host "[T5ZR] Backup menu existant -> $MenuBackupPath"
-            }
-            else {
-                Write-Warning "Un menu custom non-T5ZR existe deja et un backup T5ZR existe aussi."
-                Write-Warning "Le fichier actuel sera remplace car -InstallMenu a ete demande explicitement."
+        if ($legacyMenuText -match "T5ZR_MENU_OVERRIDE") {
+            Remove-Item $LegacyMenuTarget -Force
+            Write-Host "[T5ZR] Ancien menu loose T5ZR supprime -> $LegacyMenuTarget"
+
+            if (Test-Path $LegacyMenuBackupPath) {
+                Move-Item -Path $LegacyMenuBackupPath -Destination $LegacyMenuTarget -Force
+                Write-Host "[T5ZR] Ancien menu custom restaure -> $LegacyMenuTarget"
             }
         }
     }
@@ -225,8 +239,21 @@ if ($InstallMenu) {
     }
 
     $patchedMenu = Build-T5ZRMenuOverride -BaseMenu $baseMenu
+
+    # T5 r5340+ raw/IWD menu loading: ui/mod.txt is a MenuList and can override
+    # an already-defined MenuDef with the same name.
+    $menuList = @'
+{
+    loadMenu { "ui/xboxlive_privatelobby.menu" }
+}
+'@
+
     Set-Content -Path $MenuTarget -Value $patchedMenu -Encoding ASCII
-    Write-Host "[T5ZR] Menu Resume genere et installe -> $MenuTarget"
+    Set-Content -Path $MenuListTarget -Value $menuList -Encoding ASCII
+
+    Write-Host "[T5ZR] Mod menu installe -> $MenuModDir"
+    Write-Host "[T5ZR] IMPORTANT : dans Black Ops, ouvre MODS et charge '$MenuModName'."
+    Write-Host "[T5ZR] Ensuite ouvre Zombies > partie privee : le bouton T5ZR doit etre visible."
 }
 else {
     Write-Host "[T5ZR] Menu Resume non installe (optionnel)."
