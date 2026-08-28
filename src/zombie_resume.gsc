@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.5 / save format v8
+// v0.8.0-beta.6 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -201,7 +201,7 @@ zr_create_corner_hud(horz_align, vert_align, align_x, align_y, x, y)
     hud.foreground = true;
     hud.sort = 90;
     hud.font = "default";
-    hud.fontScale = 0.45;
+    hud.fontScale = 0.15;
     hud.alpha = 0;
 
     return hud;
@@ -242,10 +242,10 @@ zr_hud_loop()
 
     // Top-left: Manche M:SS
     round_label = self zr_create_corner_hud("left", "top", "left", "top", 12, 12);
-    round_min = self zr_create_corner_hud("left", "top", "left", "top", 86, 12);
-    round_colon = self zr_create_corner_hud("left", "top", "left", "top", 111, 12);
-    round_sec_tens = self zr_create_corner_hud("left", "top", "left", "top", 122, 12);
-    round_sec_ones = self zr_create_corner_hud("left", "top", "left", "top", 136, 12);
+    round_min = self zr_create_corner_hud("left", "top", "left", "top", 39, 12);
+    round_colon = self zr_create_corner_hud("left", "top", "left", "top", 48, 12);
+    round_sec_tens = self zr_create_corner_hud("left", "top", "left", "top", 52, 12);
+    round_sec_ones = self zr_create_corner_hud("left", "top", "left", "top", 57, 12);
 
     round_label SetText("Manche:");
     round_colon SetText(":");
@@ -258,20 +258,20 @@ zr_hud_loop()
     round_group[4] = round_sec_ones;
 
     // Top-right: Total M:SS below one hour, H:MM:SS after one hour.
-    total_label = self zr_create_corner_hud("right", "top", "right", "top", -122, 12);
+    total_label = self zr_create_corner_hud("right", "top", "right", "top", -43, 12);
 
-    total_short_min = self zr_create_corner_hud("right", "top", "right", "top", -66, 12);
-    total_short_colon = self zr_create_corner_hud("right", "top", "right", "top", -43, 12);
-    total_short_sec_tens = self zr_create_corner_hud("right", "top", "right", "top", -32, 12);
-    total_short_sec_ones = self zr_create_corner_hud("right", "top", "right", "top", -18, 12);
+    total_short_min = self zr_create_corner_hud("right", "top", "right", "top", -25, 12);
+    total_short_colon = self zr_create_corner_hud("right", "top", "right", "top", -17, 12);
+    total_short_sec_tens = self zr_create_corner_hud("right", "top", "right", "top", -13, 12);
+    total_short_sec_ones = self zr_create_corner_hud("right", "top", "right", "top", -8, 12);
 
-    total_hour = self zr_create_corner_hud("right", "top", "right", "top", -82, 12);
-    total_long_colon1 = self zr_create_corner_hud("right", "top", "right", "top", -69, 12);
-    total_min_tens = self zr_create_corner_hud("right", "top", "right", "top", -58, 12);
-    total_min_ones = self zr_create_corner_hud("right", "top", "right", "top", -44, 12);
-    total_long_colon2 = self zr_create_corner_hud("right", "top", "right", "top", -33, 12);
-    total_sec_tens = self zr_create_corner_hud("right", "top", "right", "top", -22, 12);
-    total_sec_ones = self zr_create_corner_hud("right", "top", "right", "top", -8, 12);
+    total_hour = self zr_create_corner_hud("right", "top", "right", "top", -31, 12);
+    total_long_colon1 = self zr_create_corner_hud("right", "top", "right", "top", -26, 12);
+    total_min_tens = self zr_create_corner_hud("right", "top", "right", "top", -22, 12);
+    total_min_ones = self zr_create_corner_hud("right", "top", "right", "top", -17, 12);
+    total_long_colon2 = self zr_create_corner_hud("right", "top", "right", "top", -13, 12);
+    total_sec_tens = self zr_create_corner_hud("right", "top", "right", "top", -9, 12);
+    total_sec_ones = self zr_create_corner_hud("right", "top", "right", "top", -4, 12);
 
     total_label SetText("Total:");
     total_short_colon SetText(":");
@@ -294,8 +294,8 @@ zr_hud_loop()
     total_long_group[6] = total_sec_ones;
 
     // Bottom-right: Zombies N
-    zombies_label = self zr_create_corner_hud("right", "bottom", "right", "bottom", -74, -70);
-    zombies_value = self zr_create_corner_hud("right", "bottom", "right", "bottom", -12, -70);
+    zombies_label = self zr_create_corner_hud("right", "bottom", "right", "bottom", -30, -42);
+    zombies_value = self zr_create_corner_hud("right", "bottom", "right", "bottom", -8, -42);
 
     zombies_label SetText("Zombies:");
 
@@ -2096,7 +2096,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.5";
+    level.zr_mod_version = "0.8.0-beta.6";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2150,5 +2150,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, classic corner HUD + verified weapon restore + persistent roster)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, small classic corner HUD + verified weapon restore + persistent roster)");
 }
