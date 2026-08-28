@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-beta.2 - 2026-08-28
+
+- Preserve absent players in a persistent four-slot coop roster keyed by GUID.
+- Update present players in-place instead of rebuilding save slots from the current connection order.
+- Add new players only when a free persistent slot exists.
+- Treat unmatched players as guests when all four saved slots are occupied; guests never overwrite an existing saved player.
+- Keep an absent player's last weapons, ammo, perks, stats, offhand state and multi-PAP levels until they return.
+- Start a fresh roster on the first save of a normal non-resumed Start Match, preventing accidental campaign merges.
+- Keep save format v8; no schema migration is required.
+
 ## 0.8.0-beta.1 - 2026-08-27
 
 - Save format v8; v5/v6/v7 saves remain readable and migrate on the next autosave.
