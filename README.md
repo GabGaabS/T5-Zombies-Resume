@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.1-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.2-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.1` adds multi-level Pack-a-Punch while keeping guarded v5/v6/v7 save compatibility.
+`0.8.0-beta.2` keeps multi-level Pack-a-Punch and adds a persistent GUID-keyed coop roster so absent players keep their saved loadout.
 
 The save layer already covers:
 
@@ -26,6 +26,7 @@ The save layer already covers:
 - multi-level Pack-a-Punch for supported upgraded firearms;
 - coop scoreboard kills/headshots/downs/revives;
 - strict per-player matching through `GetGuid()`;
+- persistent 4-slot coop roster: absent players keep their last saved state; new players only take free slots;
 - hellhound scheduler state;
 - Kino power and permanent opened routes;
 - Kino stage curtain and fully-linked teleporter state.
@@ -116,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.1 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.2 loaded
 ```
 
 ### Optional Resume Game button
@@ -145,6 +146,20 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -RemoveMenu
 ```
 
 The GSC/save runtime remains installed.
+
+## Persistent coop roster
+
+T5ZR keeps up to four persistent player slots, keyed by engine `GetGuid()`.
+
+On a resumed campaign:
+
+- a player whose GUID already exists updates only their own slot;
+- a saved player who is absent is **not deleted** and keeps their last saved weapons, ammo, perks, stats, Bowie/monkeys and multi-PAP levels;
+- a new player is added to the next free slot at the next successful autosave;
+- if all four saved slots are already occupied, an unmatched player is treated as a **guest** and never replaces an existing saved player;
+- when an absent saved player returns in a later resumed session, their GUID matches the old slot and their last saved state is restored.
+
+A normal fresh **Start Match** starts a new campaign roster on its first save, so an old campaign is not silently merged into a brand-new run.
 
 ## Using the menu
 
