@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.3 / save format v8
+// v0.8.0-beta.4 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -162,11 +162,11 @@ zr_save_toast_player()
     hud.alignX = "center";
     hud.alignY = "top";
     hud.x = 0;
-    hud.y = 10;
+    hud.y = 36;
     hud.foreground = true;
     hud.sort = 100;
     hud.font = "default";
-    hud.fontScale = 0.4;
+    hud.fontScale = 0.28;
     hud.alpha = 1;
 
     // Static text only: changing SetText strings allocates T5 configstrings.
@@ -189,22 +189,40 @@ zr_show_save_toast()
     }
 }
 
-zr_create_corner_hud(horz_align, vert_align, align_x, align_y, x, y)
+zr_create_topbar_text(x, y, font_scale)
 {
     hud = NewClientHudElem(self);
-    hud.horzAlign = horz_align;
-    hud.vertAlign = vert_align;
-    hud.alignX = align_x;
-    hud.alignY = align_y;
+    hud.horzAlign = "center";
+    hud.vertAlign = "top";
+    hud.alignX = "left";
+    hud.alignY = "top";
     hud.x = x;
     hud.y = y;
     hud.foreground = true;
-    hud.sort = 90;
+    hud.sort = 91;
     hud.font = "default";
-    hud.fontScale = 0.75;
+    hud.fontScale = font_scale;
     hud.alpha = 0;
 
     return hud;
+}
+
+zr_create_topbar_background()
+{
+    bg = NewClientHudElem(self);
+    bg.horzAlign = "center";
+    bg.vertAlign = "top";
+    bg.alignX = "center";
+    bg.alignY = "top";
+    bg.x = 0;
+    bg.y = 5;
+    bg.sort = 90;
+    bg.foreground = true;
+    bg.color = (0, 0, 0);
+    bg.alpha = 0;
+    bg SetShader("white", 450, 26);
+
+    return bg;
 }
 
 zr_set_hud_group_alpha(elements, value)
@@ -215,56 +233,80 @@ zr_set_hud_group_alpha(elements, value)
     }
 }
 
+zr_set_two_digits(tens_hud, ones_hud, value)
+{
+    value = Int(value);
+
+    if (value < 0)
+    {
+        value = 0;
+    }
+
+    value = value % 100;
+    tens = Int(value / 10);
+    ones = value - (tens * 10);
+
+    tens_hud SetValue(tens);
+    ones_hud SetValue(ones);
+}
+
 zr_hud_loop()
 {
     self endon("disconnect");
 
-    // IMPORTANT: never feed continuously-changing strings to SetText().
-    // BO1 stores each unique HUD string in a finite configstring table.
-    // Static labels + SetValue() keep the HUD safe for arbitrarily long runs.
+    // IMPORTANT: continuously-changing strings must never be sent to SetText().
+    // BO1 stores unique HUD strings in a finite configstring table. All live
+    // values below use SetValue(); SetText() is only used once for static labels.
 
-    round_label = self zr_create_corner_hud("left", "top", "left", "top", 12, 12);
-    round_min = self zr_create_corner_hud("left", "top", "left", "top", 70, 12);
-    round_m_label = self zr_create_corner_hud("left", "top", "left", "top", 91, 12);
-    round_sec = self zr_create_corner_hud("left", "top", "left", "top", 108, 12);
-    round_s_label = self zr_create_corner_hud("left", "top", "left", "top", 129, 12);
+    bg = self zr_create_topbar_background();
+
+    round_label = self zr_create_topbar_text(-205, 11, 0.55);
+    round_min = self zr_create_topbar_text(-145, 11, 0.55);
+    round_colon = self zr_create_topbar_text(-119, 11, 0.55);
+    round_sec_tens = self zr_create_topbar_text(-108, 11, 0.55);
+    round_sec_ones = self zr_create_topbar_text(-94, 11, 0.55);
 
     round_label SetText("Manche");
-    round_m_label SetText("m");
-    round_s_label SetText("s");
+    round_colon SetText(":");
 
     round_group = [];
     round_group[0] = round_label;
     round_group[1] = round_min;
-    round_group[2] = round_m_label;
-    round_group[3] = round_sec;
-    round_group[4] = round_s_label;
+    round_group[2] = round_colon;
+    round_group[3] = round_sec_tens;
+    round_group[4] = round_sec_ones;
 
-    total_label = self zr_create_corner_hud("right", "top", "right", "top", -170, 12);
-    total_hour = self zr_create_corner_hud("right", "top", "right", "top", -118, 12);
-    total_h_label = self zr_create_corner_hud("right", "top", "right", "top", -100, 12);
-    total_min = self zr_create_corner_hud("right", "top", "right", "top", -78, 12);
-    total_m_label = self zr_create_corner_hud("right", "top", "right", "top", -58, 12);
-    total_sec = self zr_create_corner_hud("right", "top", "right", "top", -34, 12);
-    total_s_label = self zr_create_corner_hud("right", "top", "right", "top", -12, 12);
+    sep1 = self zr_create_topbar_text(-70, 11, 0.55);
+    sep1 SetText("|");
+
+    total_label = self zr_create_topbar_text(-49, 11, 0.55);
+    total_hour = self zr_create_topbar_text(-5, 11, 0.55);
+    total_colon1 = self zr_create_topbar_text(17, 11, 0.55);
+    total_min_tens = self zr_create_topbar_text(28, 11, 0.55);
+    total_min_ones = self zr_create_topbar_text(42, 11, 0.55);
+    total_colon2 = self zr_create_topbar_text(56, 11, 0.55);
+    total_sec_tens = self zr_create_topbar_text(67, 11, 0.55);
+    total_sec_ones = self zr_create_topbar_text(81, 11, 0.55);
 
     total_label SetText("Total");
-    total_h_label SetText("h");
-    total_m_label SetText("m");
-    total_s_label SetText("s");
+    total_colon1 SetText(":");
+    total_colon2 SetText(":");
 
     total_group = [];
     total_group[0] = total_label;
     total_group[1] = total_hour;
-    total_group[2] = total_h_label;
-    total_group[3] = total_min;
-    total_group[4] = total_m_label;
-    total_group[5] = total_sec;
-    total_group[6] = total_s_label;
+    total_group[2] = total_colon1;
+    total_group[3] = total_min_tens;
+    total_group[4] = total_min_ones;
+    total_group[5] = total_colon2;
+    total_group[6] = total_sec_tens;
+    total_group[7] = total_sec_ones;
 
-    zombies_label = self zr_create_corner_hud("right", "bottom", "right", "bottom", -58, -70);
-    zombies_value = self zr_create_corner_hud("right", "bottom", "right", "bottom", -12, -70);
+    sep2 = self zr_create_topbar_text(105, 11, 0.55);
+    sep2 SetText("|");
 
+    zombies_label = self zr_create_topbar_text(127, 11, 0.55);
+    zombies_value = self zr_create_topbar_text(195, 11, 0.55);
     zombies_label SetText("Zombies");
 
     zombies_group = [];
@@ -275,6 +317,19 @@ zr_hud_loop()
     {
         hud_enabled = GetDvarInt("zr_hud") == 1;
 
+        if (hud_enabled)
+        {
+            bg.alpha = 0.35;
+            sep1.alpha = 0.65;
+            sep2.alpha = 0.65;
+        }
+        else
+        {
+            bg.alpha = 0;
+            sep1.alpha = 0;
+            sep2.alpha = 0;
+        }
+
         if (hud_enabled && GetDvarInt("zr_hud_round_time") == 1)
         {
             round_seconds = zr_round_elapsed_seconds();
@@ -282,7 +337,7 @@ zr_hud_loop()
             round_seconds = round_seconds - (round_minutes * 60);
 
             round_min SetValue(round_minutes);
-            round_sec SetValue(round_seconds);
+            zr_set_two_digits(round_sec_tens, round_sec_ones, round_seconds);
             zr_set_hud_group_alpha(round_group, 1);
         }
         else
@@ -298,8 +353,8 @@ zr_hud_loop()
             total_seconds = total_seconds - (total_hours * 3600) - (total_minutes * 60);
 
             total_hour SetValue(total_hours);
-            total_min SetValue(total_minutes);
-            total_sec SetValue(total_seconds);
+            zr_set_two_digits(total_min_tens, total_min_ones, total_minutes);
+            zr_set_two_digits(total_sec_tens, total_sec_ones, total_seconds);
             zr_set_hud_group_alpha(total_group, 1);
         }
         else
@@ -1445,6 +1500,117 @@ zr_restore_player_offhand(slot)
     self SetWeaponAmmoStock(tactical_weapon, GetDvarInt(zr_player_key(slot, "tactical_stock")));
 }
 
+zr_saved_slot_contains_weapon(slot, weapon_count, weapon)
+{
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+    {
+        return false;
+    }
+
+    for (i = 0; i < weapon_count; i++)
+    {
+        if (GetDvar(zr_weapon_key(slot, i, "name")) == weapon)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+zr_give_saved_primary(weapon)
+{
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+    {
+        return;
+    }
+
+    if (maps\_zombiemode_weapons::is_weapon_upgraded(weapon))
+    {
+        self GiveWeapon(weapon, 0, self maps\_zombiemode_weapons::get_pack_a_punch_weapon_options(weapon));
+    }
+    else
+    {
+        self GiveWeapon(weapon);
+    }
+
+    // Keep Zombies' weapon ownership bookkeeping in sync with the raw engine
+    // inventory. Missing this can make a restored weapon disappear later.
+    maps\_zombiemode_weapons::acquire_weapon_toggle(weapon, self);
+}
+
+zr_apply_saved_primary_state(slot, weapon_slot)
+{
+    weapon = GetDvar(zr_weapon_key(slot, weapon_slot, "name"));
+
+    if (weapon == "" || weapon == "none")
+    {
+        return;
+    }
+
+    if (!self HasWeapon(weapon))
+    {
+        self zr_give_saved_primary(weapon);
+    }
+
+    if (!self HasWeapon(weapon))
+    {
+        println("[T5ZR] WARNING: failed to give saved weapon slot " + weapon_slot + " (" + weapon + ").");
+        return;
+    }
+
+    self SetWeaponAmmoClip(weapon, GetDvarInt(zr_weapon_key(slot, weapon_slot, "clip")));
+    self SetWeaponAmmoStock(weapon, GetDvarInt(zr_weapon_key(slot, weapon_slot, "stock")));
+
+    if (IsDefined(level.zr_resume_save_format) && level.zr_resume_save_format >= 8)
+    {
+        saved_pap_level = GetDvarInt(zr_weapon_key(slot, weapon_slot, "pap_level"));
+
+        if (saved_pap_level < 0)
+        {
+            saved_pap_level = 0;
+        }
+
+        self zr_multi_pap_set_level(weapon, saved_pap_level);
+    }
+}
+
+zr_verify_saved_primaries(slot, weapon_count)
+{
+    // Give stock spawn/loadout threads time to finish, then remove any stray
+    // starter primary and guarantee every saved primary is still present.
+    wait 0.50;
+
+    current_primaries = self GetWeaponsListPrimaries();
+
+    for (i = 0; i < current_primaries.size; i++)
+    {
+        current_weapon = current_primaries[i];
+
+        if (!zr_saved_slot_contains_weapon(slot, weapon_count, current_weapon))
+        {
+            maps\_zombiemode_weapons::unacquire_weapon_toggle(current_weapon);
+            self TakeWeapon(current_weapon);
+            println("[T5ZR] Removed stray post-spawn primary " + current_weapon + " during restore verification.");
+        }
+    }
+
+    for (i = 0; i < weapon_count; i++)
+    {
+        self zr_apply_saved_primary_state(slot, i);
+        wait 0.05;
+    }
+
+    verified = self GetWeaponsListPrimaries();
+
+    println("[T5ZR] Restore inventory verified: expected=" + weapon_count + " actual=" + verified.size + ".");
+
+    if (verified.size < weapon_count)
+    {
+        self iPrintLnBold("^1T5ZR:^7 restauration armes incomplete - voir console");
+    }
+}
+
 zr_restore_player_slot(slot)
 {
     level.zr_slot_claimed[slot] = true;
@@ -1461,10 +1627,16 @@ zr_restore_player_slot(slot)
 
     for (i = 0; i < current_primaries.size; i++)
     {
+        maps\_zombiemode_weapons::unacquire_weapon_toggle(current_primaries[i]);
         self TakeWeapon(current_primaries[i]);
     }
 
     weapon_count = GetDvarInt(zr_player_key(slot, "weapon_count"));
+
+    if (weapon_count < 0)
+    {
+        weapon_count = 0;
+    }
 
     if (weapon_count > 3)
     {
@@ -1473,28 +1645,8 @@ zr_restore_player_slot(slot)
 
     for (i = 0; i < weapon_count; i++)
     {
-        weapon = GetDvar(zr_weapon_key(slot, i, "name"));
-
-        if (weapon == "" || weapon == "none")
-        {
-            continue;
-        }
-
-        self GiveWeapon(weapon);
-        self SetWeaponAmmoClip(weapon, GetDvarInt(zr_weapon_key(slot, i, "clip")));
-        self SetWeaponAmmoStock(weapon, GetDvarInt(zr_weapon_key(slot, i, "stock")));
-
-        if (IsDefined(level.zr_resume_save_format) && level.zr_resume_save_format >= 8)
-        {
-            saved_pap_level = GetDvarInt(zr_weapon_key(slot, i, "pap_level"));
-
-            if (saved_pap_level < 0)
-            {
-                saved_pap_level = 0;
-            }
-
-            self zr_multi_pap_set_level(weapon, saved_pap_level);
-        }
+        self zr_apply_saved_primary_state(slot, i);
+        wait 0.05;
     }
 
     // Melee/tactical fields were introduced in v7. Never consume stale
@@ -1514,6 +1666,15 @@ zr_restore_player_slot(slot)
     // give_perk updates the perk-consumption stat, so restore the exact saved
     // scoreboard values only after all perks have been rebuilt.
     self zr_restore_player_stats(slot);
+
+    self zr_verify_saved_primaries(slot, weapon_count);
+
+    // Verification may switch/give weapons again; finish on the saved selection.
+    current = GetDvar(zr_player_key(slot, "current_weapon"));
+    if (current != "" && current != "none" && self HasWeapon(current))
+    {
+        self SwitchToWeapon(current);
+    }
 
     self iPrintLnBold("^2T5ZR:^7 partie restauree - manche " + level.round_number);
     println("[T5ZR] Restored player " + self.name + " from save slot " + slot + ": kills=" + self.kills + ", headshots=" + self.headshots + ", downs=" + self.downs + ", revives=" + self.revives + ", perks=" + self.num_perks + ".");
@@ -1931,7 +2092,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.3";
+    level.zr_mod_version = "0.8.0-beta.4";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -1985,5 +2146,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, configstring-safe HUD + multi-PAP + persistent roster)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, compact safe HUD + verified weapon restore + persistent roster)");
 }
