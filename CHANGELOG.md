@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-beta.12 - 2026-08-29
+
+- Raise default multi-PAP maximum from PAP 5 to PAP 8.
+- Keep the hard runtime ceiling at PAP 10 via `zr_pap_max_level`.
+- Raise per-extra-level defaults to +60% damage, +45% effective magazine and +60% reserve.
+- Default cumulative PAP 8 bonuses are +420% damage, +315% effective magazine and +420% reserve relative to stock PAP 1.
+- Migrate previous T5ZR defaults (20/15/20 or 50/35/50 and max 5) to the new 60/45/60 and max 8 values while preserving unrelated custom values.
+- Keep the existing linear extra-PAP cost curve: 7,500 at PAP 2, then +2,500 per level.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.11 - 2026-08-29
 
 - Replace changing HUD text with static labels + native `SetTimerUp()` timers + `SetValue()` zombie count.
