@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.13-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.14-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.13` fixes multi-PAP level/price tracking so each weapon has its own independent PAP progression and virtual-magazine state.
+`0.8.0-beta.14` adds host-side repair commands for inspecting/fixing PAP levels and restoring points after earlier pricing bugs.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.13 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.14 loaded
 ```
 
 ### Optional Resume Game button
@@ -258,6 +258,42 @@ Default tuning:
 | PAP 6 | 17500 | +300% | +225% | +300% |
 | PAP 7 | 20000 | +360% | +270% | +360% |
 | PAP 8 | 22500 | +420% | +315% | +420% |
+
+## Repair commands
+
+These commands are intended for the private-lobby host to repair an existing v8 save after bugs from older beta versions.
+
+First inspect connected players and all current primary weapons:
+
+```text
+set zr_pap_status 1
+```
+
+The console prints each connected player's command index, weapon name, PAP level, native clip, effective clip and reserve.
+
+Choose the player to modify (host is normally index 0):
+
+```text
+set zr_cmd_player 0
+```
+
+To correct the **currently held Pack-a-Punched weapon** to a specific T5ZR PAP level:
+
+```text
+set zr_pap_level 2
+set zr_pap_set_level 1
+```
+
+The level is clamped between 1 and `zr_pap_max_level`. T5ZR also updates the matching archived weapon slot immediately when it can find that player's GUID/weapon in the current save, so the correction survives even before the next autosave.
+
+To refund/add points:
+
+```text
+set zr_points_amount 7500
+set zr_give_points 1
+```
+
+This uses BO1 Zombies' stock `add_to_player_score` path, updates the HUD/score total, and immediately updates the matching archived player's saved score when available. The command only accepts positive amounts and caps one grant at 1,000,000 points.
 
 ### Per-weapon PAP progression
 
