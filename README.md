@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.12-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.13-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.12` extends multi-PAP to level 8 by default and raises the per-level scaling to 60/45/60 while preserving the virtual magazine system.
+`0.8.0-beta.13` fixes multi-PAP level/price tracking so each weapon has its own independent PAP progression and virtual-magazine state.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.12 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.13 loaded
 ```
 
 ### Optional Resume Game button
@@ -258,6 +258,25 @@ Default tuning:
 | PAP 6 | 17500 | +300% | +225% | +300% |
 | PAP 7 | 20000 | +360% | +270% | +360% |
 | PAP 8 | 22500 | +420% | +315% | +420% |
+
+### Per-weapon PAP progression
+
+Multi-PAP progression is tracked independently for each weapon held by each player. Upgrading a Ray Gun to PAP 4 does **not** make a newly PAP-1 Galil cost the PAP-5 price.
+
+Example:
+
+```text
+Ray Gun PAP 4 -> next Ray Gun upgrade: PAP 5 price
+Galil PAP 1   -> next Galil upgrade: PAP 2 price (7500 by default)
+```
+
+The runtime uses a parallel per-player weapon registry rather than indexing GSC arrays directly by weapon-name strings. The same registry also isolates virtual-magazine state per weapon.
+
+For diagnostics, every PAP interaction prints:
+
+```text
+[T5ZR] Multi-PAP quote ... weapon=<name> current_level=<n> next_level=<n> cost=<points>
+```
 
 The default maximum is **PAP 8**. The runtime still supports up to **PAP 10**:
 
