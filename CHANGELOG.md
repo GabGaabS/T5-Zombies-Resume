@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-beta.14 - 2026-08-29
+
+- Add `zr_pap_status` to print connected players, weapons and runtime PAP levels.
+- Add `zr_cmd_player` target index for repair commands.
+- Add `zr_pap_level` + `zr_pap_set_level` to correct the currently held upgraded weapon's PAP level.
+- PAP correction also updates the matching archived v8 weapon slot immediately when possible.
+- Add `zr_points_amount` + `zr_give_points` to refund/add points using BO1 Zombies' stock score bookkeeping.
+- Point correction also updates the matching archived player score immediately when possible.
+- Reset command trigger dvars on map load so stale console values cannot fire after a restart.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.13 - 2026-08-29
 
 - Fix multi-PAP progression leaking between different weapons.
