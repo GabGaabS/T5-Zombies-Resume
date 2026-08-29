@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.7-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.8-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.7` adds guarded multi-PAP support for selected Wonder Weapons while keeping save format v8 and the small overflow-safe HUD.
+`0.8.0-beta.8` fixes the oversized HUD by creating proper BO1 font elements and uses Plutonium's overflow-safe `SetTextUnlimited()` for live values.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.7 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.8 loaded
 ```
 
 ### Optional Resume Game button
@@ -213,7 +213,7 @@ The HUD uses the original corner layout:
 - top-right: `Total: M:SS` (or `H:MM:SS` after one hour);
 - bottom-right: `Zombies: N`.
 
-Only the labels and colons use static `SetText()`. All changing numbers use `SetValue()`, so the original look is restored without bringing back the `G_FindConfigstringIndex: overflow` crash.
+The elements are now created as real BO1 font HUD elements (`elemType = "font"`, `objective` font, scale `0.55`), so the configured font size is actually respected. Live values use Plutonium's `SetTextUnlimited()` builtin (available on r5334+), which can refresh continuously without exhausting the configstring table.
 
 Console toggles:
 
