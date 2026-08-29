@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.11 / save format v8
+// v0.8.0-beta.12 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -563,30 +563,40 @@ zr_migrate_pap_tuning()
 {
     version = GetDvarInt("zr_pap_tuning_version");
 
-    if (version >= 2)
+    if (version >= 3)
     {
         return;
     }
 
-    // Preserve custom tuning. Only upgrade values that still match the old
-    // beta defaults used before beta.11.
-    if (GetDvarInt("zr_pap_damage_percent") == 20)
+    // Preserve custom tuning. Only upgrade values matching previous T5ZR
+    // defaults; genuinely custom values are left untouched.
+    damage_pct = GetDvarInt("zr_pap_damage_percent");
+    clip_pct = GetDvarInt("zr_pap_clip_percent");
+    stock_pct = GetDvarInt("zr_pap_stock_percent");
+    max_level = GetDvarInt("zr_pap_max_level");
+
+    if (damage_pct == 20 || damage_pct == 50)
     {
-        SetDvar("zr_pap_damage_percent", "50");
+        SetDvar("zr_pap_damage_percent", "60");
     }
 
-    if (GetDvarInt("zr_pap_clip_percent") == 15)
+    if (clip_pct == 15 || clip_pct == 35)
     {
-        SetDvar("zr_pap_clip_percent", "35");
+        SetDvar("zr_pap_clip_percent", "45");
     }
 
-    if (GetDvarInt("zr_pap_stock_percent") == 20)
+    if (stock_pct == 20 || stock_pct == 50)
     {
-        SetDvar("zr_pap_stock_percent", "50");
+        SetDvar("zr_pap_stock_percent", "60");
     }
 
-    SetDvar("zr_pap_tuning_version", "2");
-    println("[T5ZR] Multi-PAP tuning migrated to beta.11 defaults (50/35/50 when old defaults were detected).");
+    if (max_level == 5)
+    {
+        SetDvar("zr_pap_max_level", "8");
+    }
+
+    SetDvar("zr_pap_tuning_version", "3");
+    println("[T5ZR] Multi-PAP tuning migrated to beta.12 defaults (60/45/60, PAP max 8 when prior defaults were detected).");
 }
 
 zr_multi_pap_apply_full_ammo(weapon, pap_level)
@@ -2199,7 +2209,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.11";
+    level.zr_mod_version = "0.8.0-beta.12";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2238,17 +2248,17 @@ main()
     if (GetDvar("zr_pap_special") == "")
         SetDvar("zr_pap_special", "1");
     if (GetDvar("zr_pap_max_level") == "")
-        SetDvar("zr_pap_max_level", "5");
+        SetDvar("zr_pap_max_level", "8");
     if (GetDvar("zr_pap_cost_base") == "")
         SetDvar("zr_pap_cost_base", "7500");
     if (GetDvar("zr_pap_cost_step") == "")
         SetDvar("zr_pap_cost_step", "2500");
     if (GetDvar("zr_pap_damage_percent") == "")
-        SetDvar("zr_pap_damage_percent", "50");
+        SetDvar("zr_pap_damage_percent", "60");
     if (GetDvar("zr_pap_clip_percent") == "")
-        SetDvar("zr_pap_clip_percent", "35");
+        SetDvar("zr_pap_clip_percent", "45");
     if (GetDvar("zr_pap_stock_percent") == "")
-        SetDvar("zr_pap_stock_percent", "50");
+        SetDvar("zr_pap_stock_percent", "60");
     if (GetDvar("zr_pap_tuning_version") == "")
         SetDvar("zr_pap_tuning_version", "0");
 
@@ -2260,5 +2270,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, timer HUD + virtual PAP magazines + boosted damage)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, PAP 8 defaults + stronger scaling + virtual magazines)");
 }
