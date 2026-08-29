@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-beta.9 - 2026-08-29
+
+- Replace the hand-built HUD element setup with BO1 SP's stock `maps\_hud_util::createFontString()` helper.
+- Position the three HUD elements with stock `setPoint()` anchoring.
+- Use `default` font at scale `0.8` for a native small HUD look.
+- Keep Plutonium `SetTextUnlimited()` for safe live updates without configstring overflow.
+- Keep the autosave confirmation size unchanged.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.8 - 2026-08-29
 
 - Fix oversized HUD elements by setting `elemType = "font"` and using the BO1 objective font.
