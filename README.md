@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.9-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.10-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.9` rebuilds the HUD with BO1's stock SP `_hud_util` helper so font scale and corner anchoring match native HUD behavior, while keeping `SetTextUnlimited()` for overflow safety.
+`0.8.0-beta.10` reduces the stock-helper HUD scale from 0.8 to 0.22 after real-game validation showed 0.8 was still far too large.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.9 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.10 loaded
 ```
 
 ### Optional Resume Game button
