@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.9 / save format v8
+// v0.8.0-beta.10 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -194,7 +194,7 @@ zr_create_corner_hud(point, x, y)
     // Use BO1's stock SP HUD helper exactly. It creates a proper client
     // font element, attaches it to level.uiParent and makes fontscale behave
     // like the rest of the native Zombies HUD.
-    hud = maps\_hud_util::createFontString("default", 0.8, self);
+    hud = maps\_hud_util::createFontString("default", 0.22, self);
     hud maps\_hud_util::setPoint(point, undefined, x, y);
     hud.foreground = true;
     hud.sort = 90;
@@ -2062,7 +2062,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.9";
+    level.zr_mod_version = "0.8.0-beta.10";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2118,5 +2118,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, stock-helper HUD + Wonder Weapon multi-PAP + persistent roster)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, tiny stock-helper HUD + Wonder Weapon multi-PAP + persistent roster)");
 }
