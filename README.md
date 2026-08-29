@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.10-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.11-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.10` reduces the stock-helper HUD scale from 0.8 to 0.22 after real-game validation showed 0.8 was still far too large.
+`0.8.0-beta.11` removes dynamic text from the live HUD, adds a configurable HUD scale, and substantially strengthens multi-PAP with a functional virtual magazine.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.10 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.11 loaded
 ```
 
 ### Optional Resume Game button
@@ -213,7 +213,20 @@ The HUD uses the original corner layout:
 - top-right: `Total: M:SS` (or `H:MM:SS` after one hour);
 - bottom-right: `Zombies: N`.
 
-The HUD now uses BO1's stock SP `maps\_hud_util::createFontString()` and `setPoint()` helpers directly. That means font scaling and `TOPLEFT` / `TOPRIGHT` / `BOTTOMRIGHT` anchoring follow the same path as native Zombies HUD elements. The current HUD font is `default` at scale `0.8`. Live values still use Plutonium's `SetTextUnlimited()` builtin, so the `G_FindConfigstringIndex: overflow` issue remains fixed.
+The HUD uses BO1's stock SP `maps\_hud_util::createFontString()` and `setPoint()` helpers. Dynamic strings are no longer used at all: round/total time use native `SetTimerUp()` HUD timers and the zombie counter uses `SetValue()`. Only the three static labels use `SetText()`, so the `G_FindConfigstringIndex: overflow` path is avoided.
+
+HUD size is configurable with an archived percentage:
+
+```text
+set zr_hud_scale_pct 60
+```
+
+The default is 60. To make it smaller, for example:
+
+```text
+set zr_hud_scale_pct 45
+map_restart
+```
 
 Console toggles:
 
@@ -238,10 +251,10 @@ Default tuning:
 | Level | Extra cost | Damage vs PAP 1 | Effective clip | Reserve |
 | --- | ---: | ---: | ---: | ---: |
 | PAP 1 | stock 5000 | base | base | base |
-| PAP 2 | 7500 | +20% | +15% | +20% |
-| PAP 3 | 10000 | +40% | +30% | +40% |
-| PAP 4 | 12500 | +60% | +45% | +60% |
-| PAP 5 | 15000 | +80% | +60% | +80% |
+| PAP 2 | 7500 | +50% | +35% | +50% |
+| PAP 3 | 10000 | +100% | +70% | +100% |
+| PAP 4 | 12500 | +150% | +105% | +150% |
+| PAP 5 | 15000 | +200% | +140% | +200% |
 
 The percentages are additive relative to the stock PAP weapon. Settings are archived and configurable:
 
@@ -251,9 +264,9 @@ set zr_pap_special 0/1
 set zr_pap_max_level 5
 set zr_pap_cost_base 7500
 set zr_pap_cost_step 2500
-set zr_pap_damage_percent 20
-set zr_pap_clip_percent 15
-set zr_pap_stock_percent 20
+set zr_pap_damage_percent 50
+set zr_pap_clip_percent 35
+set zr_pap_stock_percent 50
 ```
 
 ### Wonder Weapon profiles
@@ -275,7 +288,9 @@ Thunder Gun and Wunderwaffe deliberately receive **ammo improvements only**: the
 
 Still excluded for now: Shrink Ray, Wave/Microwave Gun, explosive crossbow, launchers, ballistic knife and Mustang & Sally. Those need separate policies before they are safe to enable.
 
-The enlarged magazine is implemented in GSC by restoring the configured effective capacity after a normal reload while consuming the corresponding reserve ammo. T5ZR logs a warning if the r5346 engine clamps a requested clip/reserve value; that behavior still needs real-game validation.
+BO1/T5 clamps the visible ammo counter to the weapon asset's native clip size, so T5ZR cannot make a native `40` display become `54`. Instead beta.11 implements a **virtual magazine**: while virtual rounds remain, each fired round is immediately replaced in the native clip and one round is removed from reserve. The result is the configured number of real shots before a reload, even though the stock counter never exceeds its native maximum. Reloading resets the virtual portion of the magazine.
+
+The damage bonus is real additional health damage. T5ZR's Zombies damage callback calculates the configured percentage and applies a guarded extra `DoDamage()` call; the nested callback is suppressed only to avoid duplicate scoring/effects, not to cancel the engine damage.
 
 ## Save format
 
