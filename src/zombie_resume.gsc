@@ -196,13 +196,11 @@ zr_create_corner_hud(horz_align, vert_align, align_x, align_y, x, y)
     // Match BO1's createFontString setup so fontScale is actually respected.
     hud.elemType = "font";
     hud.font = "objective";
-    hud.fontScale = 0.55;
+    hud.fontscale = 0.55;
     hud.width = 0;
-    hud.height = Int(level.fontHeight * 0.55);
+    hud.height = 0;
     hud.xOffset = 0;
     hud.yOffset = 0;
-    hud.children = [];
-    hud SetParent(level.uiParent);
 
     hud.horzAlign = horz_align;
     hud.vertAlign = vert_align;
