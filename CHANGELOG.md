@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-beta.11 - 2026-08-29
+
+- Replace changing HUD text with static labels + native `SetTimerUp()` timers + `SetValue()` zombie count.
+- Add archived `zr_hud_scale_pct` (default 60) so HUD size can be tuned without editing the script.
+- Increase default multi-PAP scaling per extra level to +50% damage, +35% effective magazine and +50% reserve.
+- Automatically migrate the previous 20/15/20 defaults to 50/35/50 while preserving custom user values.
+- Add a virtual magazine because T5 clamps the visible native clip size.
+- Virtual rounds are consumed from reserve and replenish the native clip while firing, providing the configured number of real shots before reload.
+- Reloads reset the virtual portion; Max Ammo/ammo refill continues to expand reserve.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.10 - 2026-08-29
 
 - Reduce the stock-helper HUD font scale from 0.8 to 0.22 after in-game validation.
