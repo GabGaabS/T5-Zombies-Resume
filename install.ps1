@@ -41,7 +41,7 @@ $MenuModUiDir = Join-Path $MenuModDir "ui"
 $MenuTarget = Join-Path $MenuModUiDir "xboxlive_privatelobby.menu"
 $MenuListTarget = Join-Path $MenuModUiDir "mod.txt"
 
-$Version = "0.8.0-beta.13"
+$Version = "0.8.0-beta.14"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -206,7 +206,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.13 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.14 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -439,6 +439,12 @@ Write-Host "       Reglages : zr_pap_max_level, zr_pap_cost_base, zr_pap_cost_st
 Write-Host "                  zr_pap_damage_percent, zr_pap_clip_percent, zr_pap_stock_percent"
 Write-Host "       Le compteur natif de clip reste bride ; T5ZR emule les balles supplementaires."
 Write-Host "       HUD : set zr_hud_scale_pct 45 puis map_restart pour le reduire davantage."
+Write-Host ""
+Write-Host "[T5ZR] Commandes de correction :"
+Write-Host "       set zr_pap_status 1"
+Write-Host "       set zr_cmd_player 0"
+Write-Host "       set zr_pap_level 2 ; set zr_pap_set_level 1"
+Write-Host "       set zr_points_amount 7500 ; set zr_give_points 1"
 if ($InstallMenu) {
     Write-Host ""
     Write-Host "[T5ZR] Dans le lobby prive, utilise : T5ZR - RESUME GAME"
