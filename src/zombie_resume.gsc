@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.10 / save format v8
+// v0.8.0-beta.11 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -189,12 +189,28 @@ zr_show_save_toast()
     }
 }
 
+zr_hud_scale()
+{
+    pct = GetDvarInt("zr_hud_scale_pct");
+
+    if (pct < 25)
+    {
+        pct = 25;
+    }
+
+    if (pct > 150)
+    {
+        pct = 150;
+    }
+
+    return pct / 100.0;
+}
+
 zr_create_corner_hud(point, x, y)
 {
-    // Use BO1's stock SP HUD helper exactly. It creates a proper client
-    // font element, attaches it to level.uiParent and makes fontscale behave
-    // like the rest of the native Zombies HUD.
-    hud = maps\_hud_util::createFontString("default", 0.22, self);
+    // Use BO1's stock helper so SetText/SetValue/SetTimerUp all respect the
+    // same font sizing and corner anchoring as the native Zombies HUD.
+    hud = maps\_hud_util::createFontString("default", zr_hud_scale(), self);
     hud maps\_hud_util::setPoint(point, undefined, x, y);
     hud.foreground = true;
     hud.sort = 90;
@@ -208,11 +224,19 @@ zr_hud_loop()
 {
     self endon("disconnect");
 
-    // SetTextUnlimited() is provided by Plutonium r5334+ and can update live
-    // text indefinitely without consuming the finite configstring table.
-    round_hud = zr_create_corner_hud("TOPLEFT", 10, 10);
-    total_hud = zr_create_corner_hud("TOPRIGHT", -10, 10);
-    zombies_hud = zr_create_corner_hud("BOTTOMRIGHT", -10, -44);
+    // Static labels use SetText only once. Timers use SetTimerUp and the
+    // zombie count uses SetValue, so no changing strings enter configstrings.
+    round_label = zr_create_corner_hud("TOPLEFT", 10, 10);
+    round_timer = zr_create_corner_hud("TOPLEFT", 68, 10);
+    round_label SetText("Manche:");
+
+    total_label = zr_create_corner_hud("TOPRIGHT", -72, 10);
+    total_timer = zr_create_corner_hud("TOPRIGHT", -10, 10);
+    total_label SetText("Total:");
+
+    zombies_label = zr_create_corner_hud("BOTTOMRIGHT", -58, -44);
+    zombies_value = zr_create_corner_hud("BOTTOMRIGHT", -10, -44);
+    zombies_label SetText("Zombies:");
 
     for (;;)
     {
@@ -220,35 +244,41 @@ zr_hud_loop()
 
         if (hud_enabled && GetDvarInt("zr_hud_round_time") == 1)
         {
-            round_hud.alpha = 1;
-            round_hud SetTextUnlimited("Manche: " + zr_format_time(zr_round_elapsed_seconds()));
+            round_label.alpha = 1;
+            round_timer.alpha = 1;
+            round_timer SetTimerUp(0 - zr_round_elapsed_seconds() - 0.1);
         }
         else
         {
-            round_hud.alpha = 0;
+            round_label.alpha = 0;
+            round_timer.alpha = 0;
         }
 
         if (hud_enabled && GetDvarInt("zr_hud_total_time") == 1)
         {
-            total_hud.alpha = 1;
-            total_hud SetTextUnlimited("Total: " + zr_format_time(zr_total_elapsed_seconds()));
+            total_label.alpha = 1;
+            total_timer.alpha = 1;
+            total_timer SetTimerUp(0 - zr_total_elapsed_seconds() - 0.1);
         }
         else
         {
-            total_hud.alpha = 0;
+            total_label.alpha = 0;
+            total_timer.alpha = 0;
         }
 
         if (hud_enabled && GetDvarInt("zr_hud_zombies") == 1)
         {
-            zombies_hud.alpha = 1;
-            zombies_hud SetTextUnlimited("Zombies: " + zr_zombies_remaining());
+            zombies_label.alpha = 1;
+            zombies_value.alpha = 1;
+            zombies_value SetValue(zr_zombies_remaining());
         }
         else
         {
-            zombies_hud.alpha = 0;
+            zombies_label.alpha = 0;
+            zombies_value.alpha = 0;
         }
 
-        wait 0.25;
+        wait 0.90;
     }
 }
 
@@ -475,26 +505,113 @@ zr_multi_pap_stock_target(weapon, pap_level)
     return zr_multi_pap_scaled_value(WeaponStartAmmo(weapon), pap_level, GetDvarInt("zr_pap_stock_percent"));
 }
 
+zr_multi_pap_virtual_capacity(weapon, pap_level)
+{
+    native_clip = WeaponClipSize(weapon);
+    effective_clip = zr_multi_pap_clip_target(weapon, pap_level);
+    extra = effective_clip - native_clip;
+
+    if (extra < 0)
+    {
+        extra = 0;
+    }
+
+    return extra;
+}
+
+zr_multi_pap_virtual_reset(weapon, pap_level)
+{
+    if (!IsDefined(self.zr_multi_pap_virtual_remaining))
+    {
+        self.zr_multi_pap_virtual_remaining = [];
+    }
+
+    self.zr_multi_pap_virtual_remaining[weapon] = zr_multi_pap_virtual_capacity(weapon, pap_level);
+}
+
+zr_multi_pap_virtual_get(weapon, pap_level)
+{
+    if (!IsDefined(self.zr_multi_pap_virtual_remaining))
+    {
+        self.zr_multi_pap_virtual_remaining = [];
+    }
+
+    if (!IsDefined(self.zr_multi_pap_virtual_remaining[weapon]))
+    {
+        self zr_multi_pap_virtual_reset(weapon, pap_level);
+    }
+
+    return Int(self.zr_multi_pap_virtual_remaining[weapon]);
+}
+
+zr_multi_pap_virtual_set(weapon, value)
+{
+    if (!IsDefined(self.zr_multi_pap_virtual_remaining))
+    {
+        self.zr_multi_pap_virtual_remaining = [];
+    }
+
+    if (value < 0)
+    {
+        value = 0;
+    }
+
+    self.zr_multi_pap_virtual_remaining[weapon] = Int(value);
+}
+
+zr_migrate_pap_tuning()
+{
+    version = GetDvarInt("zr_pap_tuning_version");
+
+    if (version >= 2)
+    {
+        return;
+    }
+
+    // Preserve custom tuning. Only upgrade values that still match the old
+    // beta defaults used before beta.11.
+    if (GetDvarInt("zr_pap_damage_percent") == 20)
+    {
+        SetDvar("zr_pap_damage_percent", "50");
+    }
+
+    if (GetDvarInt("zr_pap_clip_percent") == 15)
+    {
+        SetDvar("zr_pap_clip_percent", "35");
+    }
+
+    if (GetDvarInt("zr_pap_stock_percent") == 20)
+    {
+        SetDvar("zr_pap_stock_percent", "50");
+    }
+
+    SetDvar("zr_pap_tuning_version", "2");
+    println("[T5ZR] Multi-PAP tuning migrated to beta.11 defaults (50/35/50 when old defaults were detected).");
+}
+
 zr_multi_pap_apply_full_ammo(weapon, pap_level)
 {
-    target_clip = zr_multi_pap_clip_target(weapon, pap_level);
+    native_clip = WeaponClipSize(weapon);
+    effective_clip = zr_multi_pap_clip_target(weapon, pap_level);
     target_stock = zr_multi_pap_stock_target(weapon, pap_level);
 
-    self SetWeaponAmmoClip(weapon, target_clip);
+    // T5 clamps the visible clip to the weapon asset's native size. Keep that
+    // native clip full and emulate the extra magazine rounds from reserve.
+    self SetWeaponAmmoClip(weapon, native_clip);
     self SetWeaponAmmoStock(weapon, target_stock);
+    self zr_multi_pap_virtual_reset(weapon, pap_level);
 
-    actual_clip = self GetWeaponAmmoClip(weapon);
     actual_stock = self GetWeaponAmmoStock(weapon);
-
-    if (actual_clip < target_clip)
-    {
-        println("[T5ZR] Multi-PAP warning: engine clamped clip for " + weapon + " target=" + target_clip + " actual=" + actual_clip);
-    }
 
     if (actual_stock < target_stock)
     {
         println("[T5ZR] Multi-PAP warning: engine clamped reserve for " + weapon + " target=" + target_stock + " actual=" + actual_stock);
     }
+
+    println("[T5ZR] Multi-PAP ammo " + weapon + " native_clip=" + native_clip +
+        " effective_clip=" + effective_clip +
+        " virtual_extra=" + zr_multi_pap_virtual_capacity(weapon, pap_level) +
+        " reserve=" + actual_stock);
 }
 
 zr_multi_pap_ammo_monitor()
@@ -539,25 +656,44 @@ zr_multi_pap_ammo_monitor()
 
         if (weapon == last_weapon)
         {
-            // A normal BO1 reload fills only the weapon asset's native clip.
-            // When that clip jumps upward, move extra rounds from reserve into
-            // T5ZR's effective enlarged magazine.
+            // Native reload detected: refill the virtual part of the magazine.
             if (clip > last_clip)
             {
-                target_clip = zr_multi_pap_clip_target(weapon, pap_level);
-                missing = target_clip - clip;
+                self zr_multi_pap_virtual_reset(weapon, pap_level);
+            }
 
-                if (missing > 0 && stock > 0)
+            // T5 cannot display ammo above WeaponClipSize(). When shots reduce
+            // the native clip, spend virtual rounds from reserve and put those
+            // rounds straight back into the native clip. The player therefore
+            // gets the configured effective magazine size before reloading.
+            if (clip < last_clip)
+            {
+                shots = last_clip - clip;
+                virtual_remaining = self zr_multi_pap_virtual_get(weapon, pap_level);
+
+                if (virtual_remaining > 0 && stock > 0)
                 {
-                    if (missing > stock)
+                    topup = shots;
+
+                    if (topup > virtual_remaining)
                     {
-                        missing = stock;
+                        topup = virtual_remaining;
                     }
 
-                    self SetWeaponAmmoClip(weapon, clip + missing);
-                    self SetWeaponAmmoStock(weapon, stock - missing);
-                    clip = self GetWeaponAmmoClip(weapon);
-                    stock = self GetWeaponAmmoStock(weapon);
+                    if (topup > stock)
+                    {
+                        topup = stock;
+                    }
+
+                    if (topup > 0)
+                    {
+                        self SetWeaponAmmoClip(weapon, clip + topup);
+                        self SetWeaponAmmoStock(weapon, stock - topup);
+                        self zr_multi_pap_virtual_set(weapon, virtual_remaining - topup);
+
+                        clip = self GetWeaponAmmoClip(weapon);
+                        stock = self GetWeaponAmmoStock(weapon);
+                    }
                 }
             }
 
@@ -727,7 +863,8 @@ zr_multi_pap_trigger()
         }
         else
         {
-            player iPrintLnBold("^2T5ZR PAP " + next_level + "^7 - degats +" + damage_bonus + "% / chargeur +" + clip_bonus + "% / reserve +" + stock_bonus + "%");
+            effective_clip = zr_multi_pap_clip_target(weapon, next_level);
+            player iPrintLnBold("^2T5ZR PAP " + next_level + "^7 - degats +" + damage_bonus + "% / chargeur effectif " + effective_clip + " / reserve +" + stock_bonus + "%");
         }
 
         println("[T5ZR] Multi-PAP " + player.name + " weapon=" + weapon + " level=" + next_level + " cost=" + cost +
@@ -1272,7 +1409,7 @@ zr_print_status()
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
     println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume") + " preserve_roster=" + level.zr_preserve_saved_roster);
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
-    println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud"));
+    println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud") + " hud_scale_pct=" + GetDvar("zr_hud_scale_pct"));
     println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " special=" + GetDvar("zr_pap_special") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
 
     roster_count = zr_saved_roster_count();
@@ -2062,7 +2199,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.10";
+    level.zr_mod_version = "0.8.0-beta.11";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2093,6 +2230,8 @@ main()
         SetDvar("zr_hud_total_time", "1");
     if (GetDvar("zr_hud_zombies") == "")
         SetDvar("zr_hud_zombies", "1");
+    if (GetDvar("zr_hud_scale_pct") == "")
+        SetDvar("zr_hud_scale_pct", "60");
 
     if (GetDvar("zr_pap_multi") == "")
         SetDvar("zr_pap_multi", "1");
@@ -2105,12 +2244,15 @@ main()
     if (GetDvar("zr_pap_cost_step") == "")
         SetDvar("zr_pap_cost_step", "2500");
     if (GetDvar("zr_pap_damage_percent") == "")
-        SetDvar("zr_pap_damage_percent", "20");
+        SetDvar("zr_pap_damage_percent", "50");
     if (GetDvar("zr_pap_clip_percent") == "")
-        SetDvar("zr_pap_clip_percent", "15");
+        SetDvar("zr_pap_clip_percent", "35");
     if (GetDvar("zr_pap_stock_percent") == "")
-        SetDvar("zr_pap_stock_percent", "20");
+        SetDvar("zr_pap_stock_percent", "50");
+    if (GetDvar("zr_pap_tuning_version") == "")
+        SetDvar("zr_pap_tuning_version", "0");
 
+    zr_migrate_pap_tuning();
     zr_init_multi_pap();
 
     level thread zr_watch_round_number();
@@ -2118,5 +2260,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, tiny stock-helper HUD + Wonder Weapon multi-PAP + persistent roster)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, timer HUD + virtual PAP magazines + boosted damage)");
 }
