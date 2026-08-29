@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.8 / save format v8
+// v0.8.0-beta.9 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -189,25 +189,13 @@ zr_show_save_toast()
     }
 }
 
-zr_create_corner_hud(horz_align, vert_align, align_x, align_y, x, y)
+zr_create_corner_hud(point, x, y)
 {
-    hud = NewClientHudElem(self);
-
-    // Match BO1's createFontString setup so fontScale is actually respected.
-    hud.elemType = "font";
-    hud.font = "objective";
-    hud.fontscale = 0.55;
-    hud.width = 0;
-    hud.height = 0;
-    hud.xOffset = 0;
-    hud.yOffset = 0;
-
-    hud.horzAlign = horz_align;
-    hud.vertAlign = vert_align;
-    hud.alignX = align_x;
-    hud.alignY = align_y;
-    hud.x = x;
-    hud.y = y;
+    // Use BO1's stock SP HUD helper exactly. It creates a proper client
+    // font element, attaches it to level.uiParent and makes fontscale behave
+    // like the rest of the native Zombies HUD.
+    hud = maps\_hud_util::createFontString("default", 0.8, self);
+    hud maps\_hud_util::setPoint(point, undefined, x, y);
     hud.foreground = true;
     hud.sort = 90;
     hud.hideWhenInMenu = true;
@@ -220,11 +208,11 @@ zr_hud_loop()
 {
     self endon("disconnect");
 
-    // r5334+ adds SetTextUnlimited(), which can update text indefinitely
-    // without consuming the finite localized/configstring table.
-    round_hud = self zr_create_corner_hud("left", "top", "left", "top", 12, 12);
-    total_hud = self zr_create_corner_hud("right", "top", "right", "top", -12, 12);
-    zombies_hud = self zr_create_corner_hud("right", "bottom", "right", "bottom", -12, -42);
+    // SetTextUnlimited() is provided by Plutonium r5334+ and can update live
+    // text indefinitely without consuming the finite configstring table.
+    round_hud = zr_create_corner_hud("TOPLEFT", 10, 10);
+    total_hud = zr_create_corner_hud("TOPRIGHT", -10, 10);
+    zombies_hud = zr_create_corner_hud("BOTTOMRIGHT", -10, -44);
 
     for (;;)
     {
@@ -2074,7 +2062,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.8";
+    level.zr_mod_version = "0.8.0-beta.9";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2130,5 +2118,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, proper font HUD + Wonder Weapon multi-PAP + persistent roster)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, stock-helper HUD + Wonder Weapon multi-PAP + persistent roster)");
 }
