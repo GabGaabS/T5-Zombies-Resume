@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-beta.10 - 2026-08-29
+
+- Reduce the stock-helper HUD font scale from 0.8 to 0.22 after in-game validation.
+- Keep the same corner positions and SetTextUnlimited overflow-safe updates.
+- Keep the autosave confirmation size unchanged.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.9 - 2026-08-29
 
 - Replace the hand-built HUD element setup with BO1 SP's stock `maps\_hud_util::createFontString()` helper.
