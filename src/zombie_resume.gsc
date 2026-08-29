@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.13 / save format v8
+// v0.8.0-beta.14 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -1477,6 +1477,212 @@ zr_print_status()
     zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
 }
 
+zr_get_command_player()
+{
+    players = GetPlayers();
+
+    if (players.size <= 0)
+    {
+        return undefined;
+    }
+
+    index = GetDvarInt("zr_cmd_player");
+
+    if (index < 0 || index >= players.size)
+    {
+        println("[T5ZR] Command aborted: zr_cmd_player=" + index + " is invalid; connected players=" + players.size + ".");
+        zr_show_message("^1T5ZR:^7 index joueur invalide");
+        return undefined;
+    }
+
+    return players[index];
+}
+
+zr_print_pap_status()
+{
+    players = GetPlayers();
+
+    println("[T5ZR] ---- PAP STATUS ----");
+
+    for (p = 0; p < players.size; p++)
+    {
+        player = players[p];
+        primaries = player GetWeaponsListPrimaries();
+
+        println("[T5ZR] player_index=" + p + " name=" + player.name + " score=" + player.score + " weapons=" + primaries.size);
+
+        for (w = 0; w < primaries.size; w++)
+        {
+            weapon = primaries[w];
+            pap_level = player zr_multi_pap_get_level(weapon);
+            effective_clip = WeaponClipSize(weapon);
+
+            if (pap_level > 1 && zr_multi_pap_weapon_supported(weapon))
+            {
+                effective_clip = zr_multi_pap_clip_target(weapon, pap_level);
+            }
+
+            println("[T5ZR]   w" + w + "=" + weapon +
+                " pap=" + pap_level +
+                " clip=" + player GetWeaponAmmoClip(weapon) +
+                " effective_clip=" + effective_clip +
+                " stock=" + player GetWeaponAmmoStock(weapon));
+        }
+    }
+
+    println("[T5ZR] Target commands use: set zr_cmd_player <index>");
+    zr_show_message("^2T5ZR:^7 PAP status -> voir console");
+}
+
+zr_update_saved_pap_level_for_player(player, weapon, pap_level)
+{
+    guid = zr_player_guid(player);
+
+    if (guid == "" || guid == "0")
+    {
+        return;
+    }
+
+    roster_count = zr_saved_roster_count();
+    roster_slot = zr_find_roster_slot_by_guid(guid, roster_count);
+
+    if (roster_slot < 0)
+    {
+        return;
+    }
+
+    weapon_count = GetDvarInt(zr_player_key(roster_slot, "weapon_count"));
+
+    if (weapon_count > 3)
+    {
+        weapon_count = 3;
+    }
+
+    for (w = 0; w < weapon_count; w++)
+    {
+        if (GetDvar(zr_weapon_key(roster_slot, w, "name")) == weapon)
+        {
+            zr_store(zr_weapon_key(roster_slot, w, "pap_level"), "" + pap_level);
+            println("[T5ZR] Updated saved PAP level: roster_slot=" + roster_slot + " weapon_slot=" + w + " weapon=" + weapon + " pap=" + pap_level);
+            return;
+        }
+    }
+}
+
+zr_command_set_pap_level()
+{
+    player = zr_get_command_player();
+
+    if (!IsDefined(player))
+    {
+        return;
+    }
+
+    weapon = player GetCurrentWeapon();
+
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none" || !player HasWeapon(weapon))
+    {
+        println("[T5ZR] PAP correction aborted: target player has no valid current weapon.");
+        player iPrintLnBold("^1T5ZR:^7 arme actuelle invalide");
+        return;
+    }
+
+    if (!player maps\_zombiemode_weapons::is_weapon_upgraded(weapon))
+    {
+        println("[T5ZR] PAP correction aborted: " + weapon + " is not Pack-a-Punched.");
+        player iPrintLnBold("^1T5ZR:^7 arme non Pack-a-Punch");
+        return;
+    }
+
+    pap_level = GetDvarInt("zr_pap_level");
+    max_level = zr_multi_pap_max_level();
+
+    if (pap_level < 1)
+    {
+        pap_level = 1;
+    }
+
+    if (pap_level > max_level)
+    {
+        pap_level = max_level;
+    }
+
+    player zr_multi_pap_set_level(weapon, pap_level);
+
+    if (pap_level > 1 && zr_multi_pap_weapon_supported(weapon))
+    {
+        player zr_multi_pap_apply_full_ammo(weapon, pap_level);
+    }
+    else
+    {
+        player zr_multi_pap_virtual_reset(weapon, pap_level);
+    }
+
+    zr_update_saved_pap_level_for_player(player, weapon, pap_level);
+
+    println("[T5ZR] PAP corrected: player=" + player.name + " weapon=" + weapon + " pap=" + pap_level);
+    player iPrintLnBold("^2T5ZR:^7 " + weapon + " -> PAP " + pap_level);
+}
+
+zr_update_saved_points_for_player(player)
+{
+    guid = zr_player_guid(player);
+
+    if (guid == "" || guid == "0")
+    {
+        return;
+    }
+
+    roster_count = zr_saved_roster_count();
+    roster_slot = zr_find_roster_slot_by_guid(guid, roster_count);
+
+    if (roster_slot < 0)
+    {
+        return;
+    }
+
+    zr_store(zr_player_key(roster_slot, "score"), "" + player.score);
+    zr_store(zr_player_key(roster_slot, "score_total"), "" + player.score_total);
+
+    println("[T5ZR] Updated saved points: roster_slot=" + roster_slot + " score=" + player.score + " total=" + player.score_total);
+}
+
+zr_command_give_points()
+{
+    player = zr_get_command_player();
+
+    if (!IsDefined(player))
+    {
+        return;
+    }
+
+    amount = GetDvarInt("zr_points_amount");
+
+    if (amount <= 0)
+    {
+        println("[T5ZR] Give points aborted: zr_points_amount must be > 0.");
+        player iPrintLnBold("^1T5ZR:^7 montant de points invalide");
+        return;
+    }
+
+    if (amount > 1000000)
+    {
+        amount = 1000000;
+    }
+
+    player maps\_zombiemode_score::add_to_player_score(amount, true);
+
+    if (IsDefined(player.stats))
+    {
+        player.stats["score"] = player.score_total;
+    }
+
+    zr_update_saved_points_for_player(player);
+
+    println("[T5ZR] Gave " + amount + " points to " + player.name + "; score=" + player.score + ".");
+    player iPrintLnBold("^2T5ZR:^7 +" + amount + " points");
+}
+
 zr_watch_controls()
 {
     for (;;)
@@ -1491,6 +1697,24 @@ zr_watch_controls()
         {
             SetDvar("zr_status", "0");
             zr_print_status();
+        }
+
+        if (GetDvarInt("zr_pap_status") == 1)
+        {
+            SetDvar("zr_pap_status", "0");
+            zr_print_pap_status();
+        }
+
+        if (GetDvarInt("zr_pap_set_level") == 1)
+        {
+            SetDvar("zr_pap_set_level", "0");
+            zr_command_set_pap_level();
+        }
+
+        if (GetDvarInt("zr_give_points") == 1)
+        {
+            SetDvar("zr_give_points", "0");
+            zr_command_give_points();
         }
 
         if (GetDvarInt("zr_clear_save") == 1)
@@ -2251,7 +2475,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.13";
+    level.zr_mod_version = "0.8.0-beta.14";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2272,6 +2496,19 @@ main()
         SetDvar("zr_status", "0");
     if (GetDvar("zr_resume") == "")
         SetDvar("zr_resume", "0");
+    // Command triggers are always reset on map load so an old console value
+    // cannot fire again after a restart.
+    SetDvar("zr_pap_status", "0");
+    SetDvar("zr_pap_set_level", "0");
+    SetDvar("zr_give_points", "0");
+
+    if (GetDvar("zr_cmd_player") == "")
+        SetDvar("zr_cmd_player", "0");
+    if (GetDvar("zr_pap_level") == "")
+        SetDvar("zr_pap_level", "1");
+    if (GetDvar("zr_points_amount") == "")
+        SetDvar("zr_points_amount", "0");
+
     if (GetDvar("zr_clear_save") == "")
         SetDvar("zr_clear_save", "0");
     if (GetDvar("zr_hud") == "")
@@ -2312,5 +2549,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, per-weapon PAP pricing + PAP 8 + virtual magazines)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, PAP repair + point repair commands + per-weapon pricing)");
 }
