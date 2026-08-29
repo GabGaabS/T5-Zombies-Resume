@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.11-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.12-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.11` removes dynamic text from the live HUD, adds a configurable HUD scale, and substantially strengthens multi-PAP with a functional virtual magazine.
+`0.8.0-beta.12` extends multi-PAP to level 8 by default and raises the per-level scaling to 60/45/60 while preserving the virtual magazine system.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.11 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.12 loaded
 ```
 
 ### Optional Resume Game button
@@ -251,22 +251,33 @@ Default tuning:
 | Level | Extra cost | Damage vs PAP 1 | Effective clip | Reserve |
 | --- | ---: | ---: | ---: | ---: |
 | PAP 1 | stock 5000 | base | base | base |
-| PAP 2 | 7500 | +50% | +35% | +50% |
-| PAP 3 | 10000 | +100% | +70% | +100% |
-| PAP 4 | 12500 | +150% | +105% | +150% |
-| PAP 5 | 15000 | +200% | +140% | +200% |
+| PAP 2 | 7500 | +60% | +45% | +60% |
+| PAP 3 | 10000 | +120% | +90% | +120% |
+| PAP 4 | 12500 | +180% | +135% | +180% |
+| PAP 5 | 15000 | +240% | +180% | +240% |
+| PAP 6 | 17500 | +300% | +225% | +300% |
+| PAP 7 | 20000 | +360% | +270% | +360% |
+| PAP 8 | 22500 | +420% | +315% | +420% |
+
+The default maximum is **PAP 8**. The runtime still supports up to **PAP 10**:
+
+```text
+set zr_pap_max_level 10
+```
+
+With the default cost curve, PAP 9 costs 25,000 points and PAP 10 costs 27,500 points. Their cumulative default bonuses are +480%/+360%/+480% and +540%/+405%/+540% respectively.
 
 The percentages are additive relative to the stock PAP weapon. Settings are archived and configurable:
 
 ```text
 set zr_pap_multi 0/1
 set zr_pap_special 0/1
-set zr_pap_max_level 5
+set zr_pap_max_level 8
 set zr_pap_cost_base 7500
 set zr_pap_cost_step 2500
-set zr_pap_damage_percent 50
-set zr_pap_clip_percent 35
-set zr_pap_stock_percent 50
+set zr_pap_damage_percent 60
+set zr_pap_clip_percent 45
+set zr_pap_stock_percent 60
 ```
 
 ### Wonder Weapon profiles
