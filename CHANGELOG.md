@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-beta.8 - 2026-08-29
+
+- Fix oversized HUD elements by setting `elemType = "font"` and using the BO1 objective font.
+- Use a real font scale (`0.55`) that is now respected by the renderer.
+- Return to one cohesive text element per corner: round time, total time and zombies remaining.
+- Use Plutonium `SetTextUnlimited()` for live HUD updates, avoiding the previous configstring-overflow crash.
+- Keep the autosave confirmation size unchanged.
+- Keep save format v8 unchanged.
+
 ## 0.8.0-beta.7 - 2026-08-28
 
 - Add guarded multi-PAP support for selected Wonder Weapons.
