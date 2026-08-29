@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.12 / save format v8
+// v0.8.0-beta.13 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -397,6 +397,61 @@ zr_multi_pap_damage_supported(weapon, mod)
         weapon_class == "spread";
 }
 
+zr_multi_pap_registry_init()
+{
+    if (!IsDefined(self.zr_multi_pap_weapon_names))
+    {
+        self.zr_multi_pap_weapon_names = [];
+    }
+
+    if (!IsDefined(self.zr_multi_pap_weapon_levels))
+    {
+        self.zr_multi_pap_weapon_levels = [];
+    }
+
+    if (!IsDefined(self.zr_multi_pap_virtual_remaining))
+    {
+        self.zr_multi_pap_virtual_remaining = [];
+    }
+}
+
+zr_multi_pap_find_runtime_slot(weapon)
+{
+    self zr_multi_pap_registry_init();
+
+    if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+    {
+        return -1;
+    }
+
+    for (i = 0; i < self.zr_multi_pap_weapon_names.size; i++)
+    {
+        if (self.zr_multi_pap_weapon_names[i] == weapon)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+zr_multi_pap_ensure_runtime_slot(weapon)
+{
+    slot = self zr_multi_pap_find_runtime_slot(weapon);
+
+    if (slot >= 0)
+    {
+        return slot;
+    }
+
+    slot = self.zr_multi_pap_weapon_names.size;
+    self.zr_multi_pap_weapon_names[slot] = weapon;
+    self.zr_multi_pap_weapon_levels[slot] = 0;
+    self.zr_multi_pap_virtual_remaining[slot] = 0;
+
+    return slot;
+}
+
 zr_multi_pap_get_level(weapon)
 {
     if (!IsDefined(weapon) || weapon == "" || weapon == "none")
@@ -404,18 +459,17 @@ zr_multi_pap_get_level(weapon)
         return 0;
     }
 
-    if (!IsDefined(self.zr_multi_pap_levels))
-    {
-        self.zr_multi_pap_levels = [];
-    }
+    slot = self zr_multi_pap_find_runtime_slot(weapon);
 
-    if (IsDefined(self.zr_multi_pap_levels[weapon]))
+    if (slot >= 0 && IsDefined(self.zr_multi_pap_weapon_levels[slot]) && self.zr_multi_pap_weapon_levels[slot] > 0)
     {
-        return Int(self.zr_multi_pap_levels[weapon]);
+        return Int(self.zr_multi_pap_weapon_levels[slot]);
     }
 
     if (self maps\_zombiemode_weapons::is_weapon_upgraded(weapon))
     {
+        slot = self zr_multi_pap_ensure_runtime_slot(weapon);
+        self.zr_multi_pap_weapon_levels[slot] = 1;
         return 1;
     }
 
@@ -424,17 +478,13 @@ zr_multi_pap_get_level(weapon)
 
 zr_multi_pap_set_level(weapon, pap_level)
 {
-    if (!IsDefined(self.zr_multi_pap_levels))
-    {
-        self.zr_multi_pap_levels = [];
-    }
-
     if (!IsDefined(weapon) || weapon == "" || weapon == "none")
     {
         return;
     }
 
-    self.zr_multi_pap_levels[weapon] = Int(pap_level);
+    slot = self zr_multi_pap_ensure_runtime_slot(weapon);
+    self.zr_multi_pap_weapon_levels[slot] = Int(pap_level);
 }
 
 zr_multi_pap_max_level()
@@ -521,42 +571,31 @@ zr_multi_pap_virtual_capacity(weapon, pap_level)
 
 zr_multi_pap_virtual_reset(weapon, pap_level)
 {
-    if (!IsDefined(self.zr_multi_pap_virtual_remaining))
-    {
-        self.zr_multi_pap_virtual_remaining = [];
-    }
-
-    self.zr_multi_pap_virtual_remaining[weapon] = zr_multi_pap_virtual_capacity(weapon, pap_level);
+    slot = self zr_multi_pap_ensure_runtime_slot(weapon);
+    self.zr_multi_pap_virtual_remaining[slot] = zr_multi_pap_virtual_capacity(weapon, pap_level);
 }
 
 zr_multi_pap_virtual_get(weapon, pap_level)
 {
-    if (!IsDefined(self.zr_multi_pap_virtual_remaining))
+    slot = self zr_multi_pap_ensure_runtime_slot(weapon);
+
+    if (!IsDefined(self.zr_multi_pap_virtual_remaining[slot]))
     {
-        self.zr_multi_pap_virtual_remaining = [];
+        self.zr_multi_pap_virtual_remaining[slot] = zr_multi_pap_virtual_capacity(weapon, pap_level);
     }
 
-    if (!IsDefined(self.zr_multi_pap_virtual_remaining[weapon]))
-    {
-        self zr_multi_pap_virtual_reset(weapon, pap_level);
-    }
-
-    return Int(self.zr_multi_pap_virtual_remaining[weapon]);
+    return Int(self.zr_multi_pap_virtual_remaining[slot]);
 }
 
 zr_multi_pap_virtual_set(weapon, value)
 {
-    if (!IsDefined(self.zr_multi_pap_virtual_remaining))
-    {
-        self.zr_multi_pap_virtual_remaining = [];
-    }
-
     if (value < 0)
     {
         value = 0;
     }
 
-    self.zr_multi_pap_virtual_remaining[weapon] = Int(value);
+    slot = self zr_multi_pap_ensure_runtime_slot(weapon);
+    self.zr_multi_pap_virtual_remaining[slot] = Int(value);
 }
 
 zr_migrate_pap_tuning()
@@ -848,6 +887,9 @@ zr_multi_pap_trigger()
         }
 
         cost = zr_multi_pap_cost(next_level);
+
+        println("[T5ZR] Multi-PAP quote player=" + player.name + " weapon=" + weapon +
+            " current_level=" + current_level + " next_level=" + next_level + " cost=" + cost);
 
         if (player.score < cost)
         {
@@ -2209,7 +2251,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.12";
+    level.zr_mod_version = "0.8.0-beta.13";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2270,5 +2312,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, PAP 8 defaults + stronger scaling + virtual magazines)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, per-weapon PAP pricing + PAP 8 + virtual magazines)");
 }
