@@ -41,7 +41,7 @@ $MenuModUiDir = Join-Path $MenuModDir "ui"
 $MenuTarget = Join-Path $MenuModUiDir "xboxlive_privatelobby.menu"
 $MenuListTarget = Join-Path $MenuModUiDir "mod.txt"
 
-$Version = "0.8.0-beta.10"
+$Version = "0.8.0-beta.11"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -206,7 +206,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.10 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.11 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -313,6 +313,7 @@ Ensure-ArchivedDvar "zr_hud" "1"
 Ensure-ArchivedDvar "zr_hud_round_time" "1"
 Ensure-ArchivedDvar "zr_hud_total_time" "1"
 Ensure-ArchivedDvar "zr_hud_zombies" "1"
+Ensure-ArchivedDvar "zr_hud_scale_pct" "60"
 
 # Multi-Pack-a-Punch tuning. Stock PAP is level 1; T5ZR handles level 2+.
 Ensure-ArchivedDvar "zr_pap_multi" "1"
@@ -320,9 +321,10 @@ Ensure-ArchivedDvar "zr_pap_special" "1"
 Ensure-ArchivedDvar "zr_pap_max_level" "5"
 Ensure-ArchivedDvar "zr_pap_cost_base" "7500"
 Ensure-ArchivedDvar "zr_pap_cost_step" "2500"
-Ensure-ArchivedDvar "zr_pap_damage_percent" "20"
-Ensure-ArchivedDvar "zr_pap_clip_percent" "15"
-Ensure-ArchivedDvar "zr_pap_stock_percent" "20"
+Ensure-ArchivedDvar "zr_pap_damage_percent" "50"
+Ensure-ArchivedDvar "zr_pap_clip_percent" "35"
+Ensure-ArchivedDvar "zr_pap_stock_percent" "50"
+Ensure-ArchivedDvar "zr_pap_tuning_version" "0"
 
 # Special-round scheduler state. These fields preserve BO1's hellhound cycle
 # across a resumed session instead of letting next_dog_round reset to 5-7.
@@ -429,11 +431,13 @@ Write-Host "       set zr_hud_zombies 0/1"
 Write-Host ""
 Write-Host "[T5ZR] Multi-PAP (PAP stock = niveau 1) :"
 Write-Host "       zr_pap_multi=1, zr_pap_special=1, max=5, couts extra=7500 + 2500/niveau"
-Write-Host "       bonus/niveau extra : degats +20%, chargeur +15%, reserve +20%"
+Write-Host "       bonus/niveau extra : degats +50%, chargeur effectif +35%, reserve +50%"
 Write-Host "       Ray Gun + Winter's Howl : degats + munitions"
 Write-Host "       Thunder Gun + Wunderwaffe : munitions (effet special natif conserve)"
 Write-Host "       Reglages : zr_pap_max_level, zr_pap_cost_base, zr_pap_cost_step,"
 Write-Host "                  zr_pap_damage_percent, zr_pap_clip_percent, zr_pap_stock_percent"
+Write-Host "       Le compteur natif de clip reste bride ; T5ZR emule les balles supplementaires."
+Write-Host "       HUD : set zr_hud_scale_pct 45 puis map_restart pour le reduire davantage."
 if ($InstallMenu) {
     Write-Host ""
     Write-Host "[T5ZR] Dans le lobby prive, utilise : T5ZR - RESUME GAME"
