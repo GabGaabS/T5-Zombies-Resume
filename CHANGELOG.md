@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-beta.13 - 2026-08-29
+
+- Fix multi-PAP progression leaking between different weapons.
+- Replace direct weapon-name array indexing with an explicit per-player registry of weapon names and PAP levels.
+- Isolate virtual-magazine state with the same per-weapon registry.
+- Keep pricing based only on the currently held weapon's own PAP level.
+- Add a console quote line showing weapon, current level, next level and computed cost before each purchase.
+- Keep save format v8 unchanged; saved PAP levels were already stored per weapon slot.
+
 ## 0.8.0-beta.12 - 2026-08-29
 
 - Raise default multi-PAP maximum from PAP 5 to PAP 8.
