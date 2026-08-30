@@ -1,10 +1,10 @@
 # Optional private-lobby menu integration
 
-T5ZR 0.6.0-beta.1 can add a **T5ZR - RESUME GAME** button to the BO1 private Zombies lobby.
+T5ZR can add a **T5ZR - RESUME GAME** button to the BO1 private Zombies lobby.
 
 ## Why it is optional
 
-T5 only allows this style of frontend integration through a raw UI override. Other BO1 UI mods may replace the same `xboxlive_privatelobby.menu` file, so T5ZR does not install it unless explicitly requested.
+Current Plutonium T5 loads this override through a mod. Other UI mods may replace the same `xboxlive_privatelobby.menu`, so T5ZR does not install the menu unless explicitly requested.
 
 ## Install
 
@@ -14,58 +14,58 @@ Close Plutonium completely:
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallMenu
 ```
 
-The installer fetches a pinned version of the public Plutonium T5 lobby menu from `plutoniummod/client-raw-assets`, patches it locally and writes:
+The installer fetches a pinned public Plutonium lobby menu, patches it locally and creates:
 
 ```text
-%localappdata%\Plutonium\storage\t5\ui\xboxlive_privatelobby.menu
+%localappdata%\Plutonium\storage\t5\mods\t5zr_resume_menu\
+    description.txt
+    ui\mod.txt
+    ui\xboxlive_privatelobby.menu
 ```
 
 The full upstream menu file is not stored in the T5ZR repository.
 
-## Existing custom menu
+After installation, launch Black Ops, open **MODS**, load **t5zr_resume_menu**, then enter Zombies/private lobby.
 
-If a non-T5ZR override already exists, the installer creates:
-
-```text
-xboxlive_privatelobby.menu.t5zr.preexisting.bak
-```
-
-before installing the T5ZR-generated version.
-
-## Remove / restore
+## Remove
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -RemoveMenu
 ```
 
-If T5ZR created a backup, it is restored automatically.
+The runtime GSC and save data remain installed.
+
+The installer also cleans up the obsolete pre-r5340 loose T5ZR menu if one is still present. It does not delete an unrelated custom override.
 
 ## Button behavior
 
-The button appears only when:
+The resume action requires:
 
-- the local client is the private-lobby host;
+- private-lobby host;
 - `zr_sv_valid == 1`;
-- `zr_sv_format == 6`;
-- the saved map is one of the stock BO1 Zombies maps handled by the menu patch.
+- `zr_sv_format == 8`;
+- a saved stock BO1 Zombies map handled by the menu patch.
 
-Selecting **T5ZR - RESUME GAME** sets `ui_mapname` to the saved map, sets `ui_gametype` to `zom`, sets `zr_resume=1` and launches `xpartygo`.
+Selecting **T5ZR - RESUME GAME** sets the saved `ui_mapname`, sets `ui_gametype` to `zom`, sets `zr_resume=1` and launches `xpartygo`.
 
-The regular Start Match action clears `zr_resume` first.
+Normal **Start Match** clears `zr_resume` first.
+
+The button itself remains visible to the host when the menu mod is loaded; the action is gated by the conditions above.
 
 ## Test checklist
 
-1. Create or keep a valid v6 save.
+1. Create a valid current v8 save.
 2. Close Plutonium.
-3. Run the installer with `-InstallMenu`.
-4. Launch Zombies and enter a private match lobby as host.
-5. Confirm **T5ZR - RESUME GAME** appears.
-6. Select it without manually changing the map.
-7. Confirm the saved map launches and the normal T5ZR restore message appears.
-8. Return to the lobby and use normal **Start Match**; confirm it does not resume the save.
+3. Run `install.ps1 -InstallMenu`.
+4. Launch Black Ops and load **t5zr_resume_menu** from MODS.
+5. Enter a private Zombies lobby as host.
+6. Confirm **T5ZR - RESUME GAME** appears.
+7. Select it and confirm the saved map launches.
+8. Look for `[T5ZR] Prepared v8 resume at round ...`.
+9. Return to the lobby and use normal **Start Match**; confirm it does not resume the save.
 
-If the lobby fails to load, remove the override with `-RemoveMenu` and report the first UI/console error.
+If the lobby fails to load, remove the mod with `-RemoveMenu` and report the first UI/console error.
 
 ## Compatibility note
 
-The generated patch is currently pinned to a known Plutonium `client-raw-assets` revision. If Plutonium changes the private-lobby menu structure, T5ZR should update the patch anchors instead of silently applying a partial modification.
+The generated patch is pinned to a known Plutonium `client-raw-assets` revision. If Plutonium changes the private-lobby menu structure, T5ZR should update its patch anchors instead of silently applying a partial modification.
