@@ -8,6 +8,7 @@
 - Reset every one-shot host command trigger on map load so stale values cannot fire after `map_restart`.
 - Clamp restored/runtime PAP levels to the configured supported maximum.
 - Reset ammo-monitor comparison state when multi-PAP is disabled/re-enabled.
+- Synchronize resume bootstrap with `spawned_player` so a very early spawn cannot miss a valid restore request.
 - Normalize the saved selected weapon to a primary weapon instead of preserving a transient/offhand selection.
 - Purge per-weapon PAP/virtual-ammo runtime state after a weapon leaves the player's inventory, preventing a newly reacquired weapon of the same type from inheriting the old PAP level.
 - Make PAP repair persist the corrected weapon's effective clip/reserve together with its PAP level.
