@@ -438,6 +438,28 @@ zr_multi_pap_registry_init()
     }
 }
 
+zr_multi_pap_prune_registry()
+{
+    self zr_multi_pap_registry_init();
+
+    for (i = 0; i < self.zr_multi_pap_weapon_names.size; i++)
+    {
+        weapon = self.zr_multi_pap_weapon_names[i];
+
+        if (!IsDefined(weapon) || weapon == "" || weapon == "none")
+        {
+            continue;
+        }
+
+        if (!self HasWeapon(weapon))
+        {
+            self.zr_multi_pap_weapon_levels[i] = 0;
+            self.zr_multi_pap_virtual_remaining[i] = 0;
+            self.zr_multi_pap_virtual_stock[i] = 0;
+        }
+    }
+}
+
 zr_multi_pap_find_runtime_slot(weapon)
 {
     self zr_multi_pap_registry_init();
@@ -813,10 +835,18 @@ zr_multi_pap_ammo_monitor()
     last_weapon = "none";
     last_clip = 0;
     last_stock = 0;
+    prune_counter = 0;
 
     for (;;)
     {
         wait 0.05;
+
+        prune_counter++;
+        if (prune_counter >= 10)
+        {
+            self zr_multi_pap_prune_registry();
+            prune_counter = 0;
+        }
 
         if (GetDvarInt("zr_pap_multi") != 1)
         {
@@ -1706,10 +1736,20 @@ zr_print_pap_status()
                 effective_clip = zr_multi_pap_clip_target(weapon, pap_level);
             }
 
+            native_clip = player GetWeaponAmmoClip(weapon);
+            virtual_clip = 0;
+
+            if (pap_level > 1 && zr_multi_pap_weapon_supported(weapon))
+            {
+                virtual_clip = player zr_multi_pap_virtual_get(weapon, pap_level);
+            }
+
             println("[T5ZR]   w" + w + "=" + weapon +
                 " pap=" + pap_level +
-                " clip=" + player GetWeaponAmmoClip(weapon) +
-                " effective_clip=" + effective_clip +
+                " clip_native=" + native_clip +
+                " clip_virtual=" + virtual_clip +
+                " clip_effective=" + (native_clip + virtual_clip) +
+                " clip_target=" + effective_clip +
                 " stock_native=" + player GetWeaponAmmoStock(weapon) +
                 " stock_virtual=" + player zr_multi_pap_virtual_stock_get(weapon) +
                 " stock_effective=" + player zr_multi_pap_effective_stock(weapon));
@@ -1720,7 +1760,7 @@ zr_print_pap_status()
     zr_show_message("^2T5ZR:^7 PAP status -> voir console");
 }
 
-zr_update_saved_pap_level_for_player(player, weapon, pap_level)
+zr_update_saved_pap_weapon_for_player(player, weapon, pap_level)
 {
     guid = zr_player_guid(player);
 
@@ -1739,6 +1779,11 @@ zr_update_saved_pap_level_for_player(player, weapon, pap_level)
 
     weapon_count = GetDvarInt(zr_player_key(roster_slot, "weapon_count"));
 
+    if (weapon_count < 0)
+    {
+        weapon_count = 0;
+    }
+
     if (weapon_count > 3)
     {
         weapon_count = 3;
@@ -1748,8 +1793,22 @@ zr_update_saved_pap_level_for_player(player, weapon, pap_level)
     {
         if (GetDvar(zr_weapon_key(roster_slot, w, "name")) == weapon)
         {
+            saved_clip = player GetWeaponAmmoClip(weapon);
+            saved_stock = player GetWeaponAmmoStock(weapon);
+
+            if (pap_level > 1 && zr_multi_pap_weapon_supported(weapon))
+            {
+                saved_clip += player zr_multi_pap_virtual_get(weapon, pap_level);
+                saved_stock = player zr_multi_pap_effective_stock(weapon);
+            }
+
+            zr_store(zr_weapon_key(roster_slot, w, "clip"), "" + saved_clip);
+            zr_store(zr_weapon_key(roster_slot, w, "stock"), "" + saved_stock);
             zr_store(zr_weapon_key(roster_slot, w, "pap_level"), "" + pap_level);
-            println("[T5ZR] Updated saved PAP level: roster_slot=" + roster_slot + " weapon_slot=" + w + " weapon=" + weapon + " pap=" + pap_level);
+
+            println("[T5ZR] Updated saved PAP weapon: roster_slot=" + roster_slot +
+                " weapon_slot=" + w + " weapon=" + weapon + " pap=" + pap_level +
+                " clip=" + saved_clip + " stock=" + saved_stock);
             return;
         }
     }
@@ -1805,7 +1864,7 @@ zr_command_set_pap_level()
         player zr_multi_pap_virtual_stock_set(weapon, 0);
     }
 
-    zr_update_saved_pap_level_for_player(player, weapon, pap_level);
+    zr_update_saved_pap_weapon_for_player(player, weapon, pap_level);
 
     println("[T5ZR] PAP corrected: player=" + player.name + " weapon=" + weapon + " pap=" + pap_level);
     player iPrintLnBold("^2T5ZR:^7 " + weapon + " -> PAP " + pap_level);
