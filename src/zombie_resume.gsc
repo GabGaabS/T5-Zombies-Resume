@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.16 / save format v8
+// v0.8.0-beta.17 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -226,28 +226,12 @@ zr_migrate_hud_scale()
     println("[T5ZR] HUD scale migrated: old default 60 -> 15.");
 }
 
-zr_create_corner_hud(horz_align, vert_align, align_x, align_y, x, y)
+zr_create_corner_hud(point, x, y)
 {
-    hud = NewClientHudElem(self);
-
-    // Build the font element directly. Timer/value HUD elements and the stock
-    // helper render at an unexpectedly huge scale on current Plutonium T5.
-    // A raw font HUD element makes fontscale deterministic again.
-    hud.elemType = "font";
-    hud.font = "objective";
-    hud.fontscale = zr_hud_scale();
-    hud.width = 0;
-    hud.height = 0;
-    hud.xOffset = 0;
-    hud.yOffset = 0;
-
-    hud.horzAlign = horz_align;
-    hud.vertAlign = vert_align;
-    hud.alignX = align_x;
-    hud.alignY = align_y;
-    hud.x = x;
-    hud.y = y;
-
+    // BO1's stock helper must be called as a method on the player so it builds
+    // a proper client font element with parent/height/fontscale initialized.
+    hud = self maps\_hud_util::createFontString("default", zr_hud_scale());
+    hud maps\_hud_util::setPoint(point, undefined, x, y);
     hud.foreground = true;
     hud.sort = 90;
     hud.hideWhenInMenu = true;
@@ -262,9 +246,11 @@ zr_hud_loop()
 
     // One cohesive element per corner avoids label/value overlap. Plutonium's
     // SetTextUnlimited updates dynamic strings without consuming configstrings.
-    round_hud = self zr_create_corner_hud("left", "top", "left", "top", 10, 10);
-    total_hud = self zr_create_corner_hud("right", "top", "right", "top", -10, 10);
-    zombies_hud = self zr_create_corner_hud("right", "bottom", "right", "bottom", -10, -44);
+    round_hud = self zr_create_corner_hud("TOPLEFT", 10, 10);
+    total_hud = self zr_create_corner_hud("TOPRIGHT", -10, 10);
+    zombies_hud = self zr_create_corner_hud("BOTTOMRIGHT", -10, -44);
+
+    println("[T5ZR] HUD created for " + self.name + " scale_pct=" + GetDvar("zr_hud_scale_pct") + " scale=" + zr_hud_scale());
 
     for (;;)
     {
@@ -2692,7 +2678,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.16";
+    level.zr_mod_version = "0.8.0-beta.17";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2769,5 +2755,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, direct-scaled HUD + virtual PAP reserve + repair commands)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, stock-player HUD scaling + virtual PAP reserve + repair commands)");
 }
