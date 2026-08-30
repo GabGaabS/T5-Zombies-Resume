@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.15-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.16-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.15` shrinks the default HUD and adds a per-weapon virtual PAP reserve so reserve bonuses are no longer lost to T5 ammo clamps. The beta.14 repair commands remain available.
+`0.8.0-beta.16` fixes HUD scaling on current Plutonium T5 by using direct font HUD elements with `SetTextUnlimited()`. The virtual PAP reserve from beta.15 and beta.14 repair commands remain available.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.15 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.16 loaded
 ```
 
 ### Optional Resume Game button
@@ -213,7 +213,7 @@ The HUD uses the original corner layout:
 - top-right: `Total: M:SS` (or `H:MM:SS` after one hour);
 - bottom-right: `Zombies: N`.
 
-The HUD uses BO1's stock SP `maps\_hud_util::createFontString()` and `setPoint()` helpers. Dynamic strings are no longer used at all: round/total time use native `SetTimerUp()` HUD timers and the zombie counter uses `SetValue()`. Only the three static labels use `SetText()`, so the `G_FindConfigstringIndex: overflow` path is avoided.
+The HUD now uses direct client font elements (`NewClientHudElem`) with an explicit `fontscale`. Current Plutonium T5 rendered the stock helper / timer-value combination at an unexpectedly huge size, so beta.16 returns to one cohesive text element per corner. Live values are updated through Plutonium's `SetTextUnlimited()`, which avoids the configstring-overflow problem while making `zr_hud_scale_pct` actually control the rendered size.
 
 HUD size is configurable with an archived percentage:
 
@@ -240,7 +240,7 @@ set zr_hud_zombies 0/1
 
 Autosave confirmation is shown in a very small line just below the top HUD bar.
 
-The live HUD is configstring-safe: changing timers and zombie counts use numeric `SetValue()` elements instead of continuously creating new `SetText()` strings. This fixes the `G_FindConfigstringIndex: overflow` crash seen on longer runs.
+The live HUD is configstring-safe through Plutonium `SetTextUnlimited()`, so changing timers and zombie counts do not consume the finite configstring table. This fixes the `G_FindConfigstringIndex: overflow` crash seen on longer runs.
 
 ## Multi-level Pack-a-Punch
 
