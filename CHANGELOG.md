@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-beta.15 - 2026-08-30
+
+- Reduce the default HUD scale from 60% to 15% after in-game validation showed the stock helper rendering about four times too large.
+- Add one-time HUD scale migration: the old default value 60 becomes 15 while deliberate custom values are preserved.
+- Lower the allowed HUD scale floor so genuinely small values such as 10-15 work correctly.
+- Add a per-player, per-weapon virtual reserve alongside the existing virtual magazine for PAP 2+.
+- Keep reserve ammo above T5's native weapon-asset clamp in the virtual reserve instead of silently losing it.
+- Charge virtual magazine refills from the effective reserve on reload; firing already-loaded virtual rounds no longer drains reserve a second time.
+- Feed hidden reserve back into the native engine pool as needed so normal reload behavior continues after the visible reserve reaches zero.
+- Save effective clip/reserve values for PAP 2+ in the existing v8 weapon fields and reconstruct their virtual portions on resume.
+- Keep save format v8 unchanged and backward-compatible with older v8 saves.
+
 ## 0.8.0-beta.14 - 2026-08-29
 
 - Add `zr_pap_status` to print connected players, weapons and runtime PAP levels.
