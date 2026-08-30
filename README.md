@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.16-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.17-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.16` fixes HUD scaling on current Plutonium T5 by using direct font HUD elements with `SetTextUnlimited()`. The virtual PAP reserve from beta.15 and beta.14 repair commands remain available.
+`0.8.0-beta.17` fixes the HUD creation path by calling BO1's stock font helper as a player method, which initializes the client font element with the expected stock parent/height/fontscale setup. The beta.15 virtual PAP reserve and beta.14 repair commands remain available.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.16 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.17 loaded
 ```
 
 ### Optional Resume Game button
@@ -213,7 +213,7 @@ The HUD uses the original corner layout:
 - top-right: `Total: M:SS` (or `H:MM:SS` after one hour);
 - bottom-right: `Zombies: N`.
 
-The HUD now uses direct client font elements (`NewClientHudElem`) with an explicit `fontscale`. Current Plutonium T5 rendered the stock helper / timer-value combination at an unexpectedly huge size, so beta.16 returns to one cohesive text element per corner. Live values are updated through Plutonium's `SetTextUnlimited()`, which avoids the configstring-overflow problem while making `zr_hud_scale_pct` actually control the rendered size.
+The HUD uses BO1's stock `maps\_hud_util::createFontString()` helper **as a method on the player**, which is the stock calling pattern that initializes a proper client font element. One cohesive text element is used per corner, and live values are updated through Plutonium `SetTextUnlimited()` to stay configstring-safe.
 
 HUD size is configurable with an archived percentage:
 
