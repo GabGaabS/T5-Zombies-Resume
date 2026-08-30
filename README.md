@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.14-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.15-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.14` adds host-side repair commands for inspecting/fixing PAP levels and restoring points after earlier pricing bugs.
+`0.8.0-beta.15` shrinks the default HUD and adds a per-weapon virtual PAP reserve so reserve bonuses are no longer lost to T5 ammo clamps. The beta.14 repair commands remain available.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.14 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.15 loaded
 ```
 
 ### Optional Resume Game button
@@ -218,13 +218,13 @@ The HUD uses BO1's stock SP `maps\_hud_util::createFontString()` and `setPoint()
 HUD size is configurable with an archived percentage:
 
 ```text
-set zr_hud_scale_pct 60
+set zr_hud_scale_pct 15
 ```
 
-The default is 60. To make it smaller, for example:
+The default is 15. beta.15 automatically migrates the old default value 60 to 15 while preserving deliberate custom values. To make it smaller, for example:
 
 ```text
-set zr_hud_scale_pct 45
+set zr_hud_scale_pct 12
 map_restart
 ```
 
@@ -306,7 +306,18 @@ Ray Gun PAP 4 -> next Ray Gun upgrade: PAP 5 price
 Galil PAP 1   -> next Galil upgrade: PAP 2 price (7500 by default)
 ```
 
-The runtime uses a parallel per-player weapon registry rather than indexing GSC arrays directly by weapon-name strings. The same registry also isolates virtual-magazine state per weapon.
+The runtime uses a parallel per-player weapon registry rather than indexing GSC arrays directly by weapon-name strings. The same registry isolates both virtual-magazine and virtual-reserve state per weapon.
+
+### Virtual magazine and reserve
+
+T5 clamps both the native clip and native reserve to the weapon asset's limits. T5ZR therefore keeps two extra per-weapon counters for PAP 2+:
+
+- virtual magazine rounds, representing the part of the enlarged magazine that cannot fit in the native clip;
+- virtual reserve rounds, representing reserve ammo above the native engine cap.
+
+Virtual magazine rounds are charged from the effective reserve when the magazine is loaded/reloaded, then fired without subtracting reserve a second time. When the native reserve reaches zero, T5ZR progressively exposes hidden virtual reserve back to the engine so reloads can continue normally.
+
+For PAP 2+ weapons, autosaves store the **effective** clip and reserve in the existing v8 weapon fields. Older v8 saves remain readable because their values simply stay within native limits.
 
 For diagnostics, every PAP interaction prints:
 
