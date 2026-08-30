@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-beta.18 - 2026-08-30
+
+- Replace the r5346 HUD path with direct client HUD elements using T5's stock `small` font.
+- Stop using the ambiguous SP `createFontString()` path for the three live corner elements.
+- Change `zr_hud_scale_pct` semantics so 100 maps to engine font scale 1.0; clamp the runtime range to 50-200.
+- Migrate the old beta.14-beta.17 fractional values (including 8/15/60) to the new 100 baseline.
+- Keep one `SetTextUnlimited()` element per corner, preserving configstring-safe dynamic updates.
+- Keep beta.15 virtual PAP reserve behavior and save format v8 unchanged.
+
 ## 0.8.0-beta.17 - 2026-08-30
 
 - Fix the HUD creation call so BO1's stock `createFontString()` helper is invoked as a method on the player.
