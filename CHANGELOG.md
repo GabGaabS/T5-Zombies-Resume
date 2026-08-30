@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.0-beta.19 - 2026-08-30
+
+- Remove legacy v5/v6/v7 save readers; the runtime now accepts current save format v8 only.
+- Remove obsolete HUD-scale and multi-PAP tuning migration code/dvars.
+- Remove the unsafe manual mid-round save command path; saves remain round-boundary-only.
+- Reset every one-shot host command trigger on map load so stale values cannot fire after `map_restart`.
+- Clamp restored/runtime PAP levels to the configured supported maximum.
+- Reset ammo-monitor comparison state when multi-PAP is disabled/re-enabled.
+- Normalize the saved selected weapon to a primary weapon instead of preserving a transient/offhand selection.
+- Purge per-weapon PAP/virtual-ammo runtime state after a weapon leaves the player's inventory, preventing a newly reacquired weapon of the same type from inheriting the old PAP level.
+- Make PAP repair persist the corrected weapon's effective clip/reserve together with its PAP level.
+- Expand `zr_pap_status` diagnostics with native/virtual/effective clip state.
+- Use the validated stock-small HUD setup for the autosave toast as well.
+- Add the missing menu-mod `description.txt`, removing Plutonium's `FS_GetModList` warning for `t5zr_resume_menu`.
+- Restrict the generated Resume button to current v8 saves.
+- Refresh current architecture, save-format, menu and troubleshooting documentation.
+
 ## 0.8.0-beta.18 - 2026-08-30
 
 - Replace the r5346 HUD path with direct client HUD elements using T5's stock `small` font.
