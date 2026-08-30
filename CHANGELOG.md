@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0-beta.17 - 2026-08-30
+
+- Fix the HUD creation call so BO1's stock `createFontString()` helper is invoked as a method on the player.
+- Use the stock client-font initialization path (parent, height and fontscale bookkeeping) instead of the incomplete hand-built beta.16 element.
+- Keep one `SetTextUnlimited()` text element per corner and preserve the configurable `zr_hud_scale_pct`.
+- Add a console line when the HUD is created showing the resolved percentage/scale for in-game verification.
+- Keep the beta.15 virtual PAP reserve and save format v8 unchanged.
+
 ## 0.8.0-beta.16 - 2026-08-30
 
 - Replace the split stock-helper HUD (static label + timer/value element) with one direct client font element per corner.
