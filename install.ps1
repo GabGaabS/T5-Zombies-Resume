@@ -41,7 +41,7 @@ $MenuModUiDir = Join-Path $MenuModDir "ui"
 $MenuTarget = Join-Path $MenuModUiDir "xboxlive_privatelobby.menu"
 $MenuListTarget = Join-Path $MenuModUiDir "mod.txt"
 
-$Version = "0.8.0-beta.14"
+$Version = "0.8.0-beta.15"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -206,7 +206,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.14 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.15 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -313,7 +313,8 @@ Ensure-ArchivedDvar "zr_hud" "1"
 Ensure-ArchivedDvar "zr_hud_round_time" "1"
 Ensure-ArchivedDvar "zr_hud_total_time" "1"
 Ensure-ArchivedDvar "zr_hud_zombies" "1"
-Ensure-ArchivedDvar "zr_hud_scale_pct" "60"
+Ensure-ArchivedDvar "zr_hud_scale_pct" "15"
+Ensure-ArchivedDvar "zr_hud_scale_version" "0"
 
 # Multi-Pack-a-Punch tuning. Stock PAP is level 1; T5ZR handles level 2+.
 Ensure-ArchivedDvar "zr_pap_multi" "1"
