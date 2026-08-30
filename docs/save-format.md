@@ -1,41 +1,24 @@
 # Save format v8
 
-T5 Zombies Resume writes one host-side round-boundary snapshot in archived `zr_sv_*` dvars. A save becomes valid only after all session, scheduler, world and player fields have been written.
+T5 Zombies Resume writes one host-side **round-boundary** snapshot in archived `zr_sv_*` dvars. A save becomes valid only after session, scheduler, world and player fields have been written.
 
-The current runtime writes **v8** and can read **v5, v6, v7 and v8**.
-
-## Compatibility matrix
-
-| Field group | v5 | v6 | v7 | v8 |
-| --- | --- | --- | --- | --- |
-| Round / map / player GUIDs | yes | yes | yes | yes |
-| Points / stats / primaries / ammo | yes | yes | yes | yes |
-| Perks | yes | yes | yes | yes |
-| Kino world adapter | yes | yes | yes | yes |
-| Hellhound scheduler | no | yes | yes | yes |
-| Persistent total run time | no | no | yes | yes |
-| Melee / tactical state (Bowie, monkeys) | no | no | yes | yes |
-| Multi-PAP level per primary | no | no | no | yes |
-
-A legacy save is never modified merely by loading it. The **next successful autosave** writes all currently available state as v8.
-
-For safety, the reader is format-gated. A v5 restore never consumes archived v6/v7-only values that may be left in `config.cfg` from another snapshot.
+The current runtime reads and writes **v8 only**. Legacy v5/v6/v7 readers were removed in 0.8.0-beta.19.
 
 ## Session
 
 ```text
 zr_sv_valid
-zr_sv_format            # current writer: 8
+zr_sv_format            # 8
 zr_sv_mod_version
 zr_sv_map
 zr_sv_round             # next round to play
 zr_sv_reason
 zr_sv_player_count
 zr_sv_world_adapter
-zr_sv_total_time_seconds    # v7+
+zr_sv_total_time_seconds
 ```
 
-## Hellhound scheduler (v6+)
+## Hellhound scheduler
 
 ```text
 zr_sv_dog_rounds_enabled
@@ -44,18 +27,18 @@ zr_sv_dog_round_count
 zr_sv_next_dog_round
 ```
 
-A v5 resume intentionally leaves this on stock BO1 behavior because the v5 snapshot never contained scheduler state.
+The scheduler is restored instead of letting BO1 choose a fresh special-round cycle after resume.
 
 ## Player identity
 
-Up to four slots are stored. Engine `GetGuid()` is authoritative; the saved name is metadata only.
+Up to four persistent slots are stored. Engine `GetGuid()` is authoritative; the saved name is metadata only.
 
 ```text
 zr_sv_p0_guid
 zr_sv_p0_name
 ```
 
-There is no name fallback.
+There is no name fallback and an absent player keeps their slot.
 
 ## Points and scoreboard
 
@@ -71,7 +54,7 @@ zr_sv_p0_zombie_gibs
 zr_sv_p0_perks_stat
 ```
 
-v5 already stored the script-side round stat values. Current releases rebuild both the stat mirrors and the coop scoreboard fields from those saved values.
+Restore updates both the coop scoreboard fields and the internal Zombies stat mirrors.
 
 ## Primary weapons
 
@@ -81,14 +64,17 @@ zr_sv_p0_weapon_count
 zr_sv_p0_w0_name
 zr_sv_p0_w0_clip
 zr_sv_p0_w0_stock
-zr_sv_p0_w0_pap_level   # v8+
+zr_sv_p0_w0_pap_level
 ...
 zr_sv_p0_w2_name
 zr_sv_p0_w2_clip
 zr_sv_p0_w2_stock
+zr_sv_p0_w2_pap_level
 ```
 
-Up to three primaries are stored.
+Up to three primaries are stored. `current_weapon` is normalized to a saved primary so an offhand/temporary weapon cannot become the resume selection accidentally.
+
+For supported PAP 2+ weapons, `clip` and `stock` are **effective ammunition** values. They include virtual-magazine and virtual-reserve overflow that T5 cannot represent directly in the weapon asset.
 
 ## Perks
 
@@ -101,7 +87,7 @@ zr_sv_p0_perk15
 
 Perks are rebuilt through the stock Zombies perk path before primaries are restored, so Mule Kick can precede a third weapon.
 
-## Melee and tactical state (v7+)
+## Melee and tactical state
 
 ```text
 zr_sv_p0_melee_weapon
@@ -110,19 +96,21 @@ zr_sv_p0_tactical_clip
 zr_sv_p0_tactical_stock
 ```
 
-These fields preserve state such as `bowie_knife_zm` and `zombie_cymbal_monkey`.
+These preserve state such as `bowie_knife_zm` and `zombie_cymbal_monkey`.
 
-They are deliberately ignored for v5/v6 restores.
+## Multi-PAP state
 
-## Multi-PAP state (v8+)
+Each primary stores `pap_level`:
 
-Each primary weapon slot stores `pap_level`. A value of `1` is the normal stock Pack-a-Punch result; values `2+` are T5ZR extra levels. Legacy v5/v6/v7 saves do not read this field, even if a stale archived value exists.
+- `0`: non-PAP / no T5ZR PAP state;
+- `1`: stock BO1 Pack-a-Punch;
+- `2+`: T5ZR extra PAP levels.
 
-Starting with beta.15, for PAP 2+ supported weapons the existing `clip` and `stock` fields represent **effective ammunition**, including any virtual magazine/reserve overflow that T5 cannot hold in the native weapon asset. No schema field was added, so the format remains v8. Older v8 snapshots remain valid: their native-only values simply reconstruct with zero virtual overflow.
+Restored values are clamped to the current runtime maximum before virtual ammo/damage state is rebuilt.
 
-## Kino world adapter (v5+)
+## Kino world adapter
 
-When `zr_sv_world_adapter == "kino_v1"`, the runtime can restore the stable Kino state introduced by v5:
+When `zr_sv_world_adapter == "kino_v1"`, T5ZR restores the stable Kino state it currently models:
 
 ```text
 zr_sv_kino_power
@@ -148,14 +136,20 @@ zr_sv_kino_teleporter_linked
 
 The first installer run creates `config.cfg.t5zr.bak`.
 
+## Transaction behavior
+
+A save starts by writing `zr_sv_valid=0`. Only after all current state has been written does T5ZR set `zr_sv_valid=1` again. A partially written snapshot is therefore rejected on resume.
+
 ## Resume validation
 
 Resume is rejected when:
 
 - `zr_sv_valid != 1`;
-- the format is not v5, v6, v7 or v8;
+- `zr_sv_format != 8`;
 - saved map and current map differ;
 - saved round is invalid.
+
+Old v5/v6/v7 snapshots are left untouched but are no longer loaded.
 
 ## Deliberately not stored
 
