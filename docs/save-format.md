@@ -118,6 +118,8 @@ They are deliberately ignored for v5/v6 restores.
 
 Each primary weapon slot stores `pap_level`. A value of `1` is the normal stock Pack-a-Punch result; values `2+` are T5ZR extra levels. Legacy v5/v6/v7 saves do not read this field, even if a stale archived value exists.
 
+Starting with beta.15, for PAP 2+ supported weapons the existing `clip` and `stock` fields represent **effective ammunition**, including any virtual magazine/reserve overflow that T5 cannot hold in the native weapon asset. No schema field was added, so the format remains v8. Older v8 snapshots remain valid: their native-only values simply reconstruct with zero virtual overflow.
+
 ## Kino world adapter (v5+)
 
 When `zr_sv_world_adapter == "kino_v1"`, the runtime can restore the stable Kino state introduced by v5:
