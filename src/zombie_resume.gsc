@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.17 / save format v8
+// v0.8.0-beta.18 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -193,14 +193,16 @@ zr_hud_scale()
 {
     pct = GetDvarInt("zr_hud_scale_pct");
 
-    if (pct < 5)
+    // T5 stock HUDs use engine font scales around 1.0+. Values such as 0.08
+    // and 0.15 proved effectively unusable on current Plutonium T5 SP.
+    if (pct < 50)
     {
-        pct = 5;
+        pct = 50;
     }
 
-    if (pct > 100)
+    if (pct > 200)
     {
-        pct = 100;
+        pct = 200;
     }
 
     return pct / 100.0;
@@ -210,32 +212,63 @@ zr_migrate_hud_scale()
 {
     version = GetDvarInt("zr_hud_scale_version");
 
-    if (version >= 1)
+    if (version >= 2)
     {
         return;
     }
 
-    // beta.14's default 60 maps to a 0.60 stock-helper font and is enormous
-    // in-game. Migrate only that old default; preserve deliberate custom sizes.
-    if (GetDvarInt("zr_hud_scale_pct") == 60)
+    old_pct = GetDvarInt("zr_hud_scale_pct");
+
+    // beta.14-beta.17 interpreted this dvar as a fractional default-font
+    // scale. beta.18 instead uses the stock small font where 100 = 1.0.
+    // Migrate the known old small values so existing configs are readable.
+    if (old_pct <= 25 || old_pct == 60)
     {
-        SetDvar("zr_hud_scale_pct", "15");
+        SetDvar("zr_hud_scale_pct", "100");
     }
 
-    SetDvar("zr_hud_scale_version", "1");
-    println("[T5ZR] HUD scale migrated: old default 60 -> 15.");
+    SetDvar("zr_hud_scale_version", "2");
+    println("[T5ZR] HUD migrated to stock-small sizing; 100 percent = engine scale 1.0.");
 }
 
 zr_create_corner_hud(point, x, y)
 {
-    // BO1's stock helper must be called as a method on the player so it builds
-    // a proper client font element with parent/height/fontscale initialized.
-    hud = self maps\_hud_util::createFontString("default", zr_hud_scale());
-    hud maps\_hud_util::setPoint(point, undefined, x, y);
+    // Do not use SP createFontString here. Its calling convention differs from
+    // MP and fractional scales produced giant text on current Plutonium T5.
+    // This mirrors T5's own direct client-HUD setup used by stock UI scripts.
+    hud = NewClientHudElem(self);
+    hud.archived = false;
     hud.foreground = true;
     hud.sort = 90;
     hud.hideWhenInMenu = true;
+    hud.font = "small";
+    hud.fontscale = zr_hud_scale();
     hud.alpha = 0;
+
+    if (point == "TOPLEFT")
+    {
+        hud.horzAlign = "left";
+        hud.vertAlign = "top";
+        hud.alignX = "left";
+        hud.alignY = "top";
+    }
+    else if (point == "TOPRIGHT")
+    {
+        hud.horzAlign = "right";
+        hud.vertAlign = "top";
+        hud.alignX = "right";
+        hud.alignY = "top";
+    }
+    else
+    {
+        hud.horzAlign = "right";
+        hud.vertAlign = "bottom";
+        hud.alignX = "right";
+        hud.alignY = "bottom";
+    }
+
+    hud.x = x;
+    hud.y = y;
 
     return hud;
 }
@@ -2678,7 +2711,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.17";
+    level.zr_mod_version = "0.8.0-beta.18";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2723,7 +2756,7 @@ main()
     if (GetDvar("zr_hud_zombies") == "")
         SetDvar("zr_hud_zombies", "1");
     if (GetDvar("zr_hud_scale_pct") == "")
-        SetDvar("zr_hud_scale_pct", "15");
+        SetDvar("zr_hud_scale_pct", "100");
     if (GetDvar("zr_hud_scale_version") == "")
         SetDvar("zr_hud_scale_version", "0");
 
@@ -2755,5 +2788,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, stock-player HUD scaling + virtual PAP reserve + repair commands)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, stock-small HUD + virtual PAP reserve + repair commands)");
 }
