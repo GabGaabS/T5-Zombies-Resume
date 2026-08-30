@@ -40,8 +40,9 @@ $MenuModDir = Join-Path $ModsDir $MenuModName
 $MenuModUiDir = Join-Path $MenuModDir "ui"
 $MenuTarget = Join-Path $MenuModUiDir "xboxlive_privatelobby.menu"
 $MenuListTarget = Join-Path $MenuModUiDir "mod.txt"
+$MenuDescriptionTarget = Join-Path $MenuModDir "description.txt"
 
-$Version = "0.8.0-beta.18"
+$Version = "0.8.0-beta.19"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -175,7 +176,7 @@ function Build-T5ZRMenuOverride {
 			dvarString( zr_sv_map ) == "zombie_cod5_asylum" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_sumpf" || \
 			dvarString( zr_sv_map ) == "zombie_cod5_factory" )
-		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && ( dvarInt( zr_sv_format ) == 5 || dvarInt( zr_sv_format ) == 6 || dvarInt( zr_sv_format ) == 7 || dvarInt( zr_sv_format ) == 8 ) && T5ZR_SUPPORTED_SAVE_MAP )
+		#define T5ZR_CAN_RESUME ( IS_LOBBY_HOST && dvarInt( zr_sv_valid ) == 1 && dvarInt( zr_sv_format ) == 8 && T5ZR_SUPPORTED_SAVE_MAP )
 '@
 
     if (-not $menu.Contains($hostMacros)) {
@@ -206,7 +207,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.18 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.19 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -250,6 +251,7 @@ if ($InstallMenu) {
 
     Set-Content -Path $MenuTarget -Value $patchedMenu -Encoding ASCII
     Set-Content -Path $MenuListTarget -Value $menuList -Encoding ASCII
+    Set-Content -Path $MenuDescriptionTarget -Value "T5 Zombies Resume - private lobby Resume button" -Encoding ASCII
 
     Write-Host "[T5ZR] Mod menu installe -> $MenuModDir"
     Write-Host "[T5ZR] IMPORTANT : dans Black Ops, ouvre MODS et charge '$MenuModName'."
@@ -314,7 +316,6 @@ Ensure-ArchivedDvar "zr_hud_round_time" "1"
 Ensure-ArchivedDvar "zr_hud_total_time" "1"
 Ensure-ArchivedDvar "zr_hud_zombies" "1"
 Ensure-ArchivedDvar "zr_hud_scale_pct" "100"
-Ensure-ArchivedDvar "zr_hud_scale_version" "0"
 
 # Multi-Pack-a-Punch tuning. Stock PAP is level 1; T5ZR handles level 2+.
 Ensure-ArchivedDvar "zr_pap_multi" "1"
@@ -325,7 +326,6 @@ Ensure-ArchivedDvar "zr_pap_cost_step" "2500"
 Ensure-ArchivedDvar "zr_pap_damage_percent" "60"
 Ensure-ArchivedDvar "zr_pap_clip_percent" "45"
 Ensure-ArchivedDvar "zr_pap_stock_percent" "60"
-Ensure-ArchivedDvar "zr_pap_tuning_version" "0"
 
 # Special-round scheduler state. These fields preserve BO1's hellhound cycle
 # across a resumed session instead of letting next_dog_round reset to 5-7.
@@ -417,12 +417,11 @@ Write-Host "[T5ZR] Runtime attendu : $Version / save format v$SaveFormat"
 Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
-Write-Host "[T5ZR] Save format : v8 (les saves v5/v6/v7 restent lisibles et migrent au prochain autosave)."
+Write-Host "[T5ZR] Save format : v8 uniquement. Les anciens formats v5/v6/v7 ne sont plus charges."
 Write-Host "[T5ZR] v8 ajoute les niveaux multi-Pack-a-Punch par arme."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
-Write-Host "       set zr_save_now 1     -> save manuelle"
 Write-Host "       set zr_resume 1       -> armer la reprise, puis map_restart"
 Write-Host "       set zr_clear_save 1   -> effacer la save"
 Write-Host "       set zr_hud 0/1        -> masquer/afficher tout le HUD T5ZR"
