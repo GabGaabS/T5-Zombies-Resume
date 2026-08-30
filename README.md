@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.18-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.19-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.18` replaces the problematic fractional default-font HUD with direct client HUD elements using T5's stock `small` font. `zr_hud_scale_pct=100` now maps to engine font scale `1.0`, avoiding the giant rendering seen with values such as `0.08`/`0.15` on current Plutonium T5. The beta.15 virtual PAP reserve and beta.14 repair commands remain available.
+`0.8.0-beta.19` hardens the current v8 runtime after r5346 in-game validation: legacy v5/v6/v7 readers and old tuning/HUD migrations are removed, one-shot console triggers are reset safely on map load, PAP runtime state is clamped, and the optional menu mod now includes the missing `description.txt`. The validated stock-small HUD and virtual PAP reserve remain unchanged.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.18 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.19 loaded
 ```
 
 ### Optional Resume Game button
@@ -221,7 +221,7 @@ HUD size is configurable with an archived percentage:
 set zr_hud_scale_pct 100
 ```
 
-The default is 100, meaning T5 engine font scale 1.0 with the stock `small` font. beta.18 migrates the old beta.14-beta.17 values (including 8/15/60) to 100. To make it smaller, for example:
+The default is 100, meaning T5 engine font scale 1.0 with the stock `small` font. To make it smaller, for example:
 
 ```text
 set zr_hud_scale_pct 75
@@ -367,21 +367,17 @@ Thunder Gun and Wunderwaffe deliberately receive **ammo improvements only**: the
 
 Still excluded for now: Shrink Ray, Wave/Microwave Gun, explosive crossbow, launchers, ballistic knife and Mustang & Sally. Those need separate policies before they are safe to enable.
 
-BO1/T5 clamps the visible ammo counter to the weapon asset's native clip size, so T5ZR cannot make a native `40` display become `54`. Instead beta.11 implements a **virtual magazine**: while virtual rounds remain, each fired round is immediately replaced in the native clip and one round is removed from reserve. The result is the configured number of real shots before a reload, even though the stock counter never exceeds its native maximum. Reloading resets the virtual portion of the magazine.
+BO1/T5 clamps both the visible clip and native reserve to weapon-asset limits. T5ZR therefore keeps a **virtual magazine** and **virtual reserve** per weapon. Virtual magazine rounds are charged from the effective reserve when a magazine is loaded/reloaded, then firing them does **not** subtract reserve a second time. When the native reserve reaches zero, hidden virtual reserve is progressively exposed back to the engine so normal reloads continue. The stock ammo HUD still cannot display values above the weapon asset's native limits.
 
 The damage bonus is real additional health damage. T5ZR's Zombies damage callback calculates the configured percentage and applies a guarded extra `DoDamage()` call; the nested callback is suppressed only to avoid duplicate scoring/effects, not to cancel the engine damage.
 
 ## Save format
 
-0.8.0-beta.1 writes **save format v8**. Existing **v5, v6 and v7** saves remain readable and migrate to v8 on the next autosave.
+The current runtime writes and reads **save format v8 only**.
 
-Legacy behavior remains conservative:
+Formats v5, v6 and v7 are intentionally no longer accepted. This removes stale format-gating branches from the runtime and keeps restore logic aligned with the state actually validated in current builds: total run time, offhand state, persistent roster and per-weapon multi-PAP levels.
 
-- v5 restores its native fields and leaves the hellhound scheduler on stock behavior;
-- v6 additionally restores its saved hellhound scheduler;
-- v7 additionally restores total run time and offhand state;
-- v5/v6/v7 have no saved multi-PAP levels, so an already Pack-a-Punched weapon resumes as PAP level 1;
-- v8 stores the multi-PAP level alongside each saved primary weapon.
+If an old save is still present, T5ZR refuses to resume it without mutating it. Start a fresh match and let the next round-boundary autosave create a current v8 snapshot.
 
 ## Install paths
 
