@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0-beta.16 - 2026-08-30
+
+- Replace the split stock-helper HUD (static label + timer/value element) with one direct client font element per corner.
+- Apply `zr_hud_scale_pct` through the raw HUD element's `fontscale`, making the size deterministic on current Plutonium T5.
+- Return live HUD updates to Plutonium `SetTextUnlimited()` so round time, total time and zombie count stay configstring-safe.
+- Remove label/value spacing assumptions that caused visible overlap when the engine rendered the elements oversized.
+- Keep the beta.15 virtual PAP reserve and save format v8 unchanged.
+
 ## 0.8.0-beta.15 - 2026-08-30
 
 - Reduce the default HUD scale from 60% to 15% after in-game validation showed the stock helper rendering about four times too large.
