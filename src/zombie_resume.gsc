@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.14 / save format v8
+// v0.8.0-beta.15 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -193,17 +193,37 @@ zr_hud_scale()
 {
     pct = GetDvarInt("zr_hud_scale_pct");
 
-    if (pct < 25)
+    if (pct < 5)
     {
-        pct = 25;
+        pct = 5;
     }
 
-    if (pct > 150)
+    if (pct > 100)
     {
-        pct = 150;
+        pct = 100;
     }
 
     return pct / 100.0;
+}
+
+zr_migrate_hud_scale()
+{
+    version = GetDvarInt("zr_hud_scale_version");
+
+    if (version >= 1)
+    {
+        return;
+    }
+
+    // beta.14's default 60 maps to a 0.60 stock-helper font and is enormous
+    // in-game. Migrate only that old default; preserve deliberate custom sizes.
+    if (GetDvarInt("zr_hud_scale_pct") == 60)
+    {
+        SetDvar("zr_hud_scale_pct", "15");
+    }
+
+    SetDvar("zr_hud_scale_version", "1");
+    println("[T5ZR] HUD scale migrated: old default 60 -> 15.");
 }
 
 zr_create_corner_hud(point, x, y)
@@ -413,6 +433,11 @@ zr_multi_pap_registry_init()
     {
         self.zr_multi_pap_virtual_remaining = [];
     }
+
+    if (!IsDefined(self.zr_multi_pap_virtual_stock))
+    {
+        self.zr_multi_pap_virtual_stock = [];
+    }
 }
 
 zr_multi_pap_find_runtime_slot(weapon)
@@ -448,6 +473,7 @@ zr_multi_pap_ensure_runtime_slot(weapon)
     self.zr_multi_pap_weapon_names[slot] = weapon;
     self.zr_multi_pap_weapon_levels[slot] = 0;
     self.zr_multi_pap_virtual_remaining[slot] = 0;
+    self.zr_multi_pap_virtual_stock[slot] = 0;
 
     return slot;
 }
@@ -598,6 +624,148 @@ zr_multi_pap_virtual_set(weapon, value)
     self.zr_multi_pap_virtual_remaining[slot] = Int(value);
 }
 
+zr_multi_pap_virtual_stock_get(weapon)
+{
+    slot = self zr_multi_pap_ensure_runtime_slot(weapon);
+
+    if (!IsDefined(self.zr_multi_pap_virtual_stock[slot]))
+    {
+        self.zr_multi_pap_virtual_stock[slot] = 0;
+    }
+
+    return Int(self.zr_multi_pap_virtual_stock[slot]);
+}
+
+zr_multi_pap_virtual_stock_set(weapon, value)
+{
+    if (value < 0)
+    {
+        value = 0;
+    }
+
+    slot = self zr_multi_pap_ensure_runtime_slot(weapon);
+    self.zr_multi_pap_virtual_stock[slot] = Int(value);
+}
+
+zr_multi_pap_effective_stock(weapon)
+{
+    return self GetWeaponAmmoStock(weapon) + self zr_multi_pap_virtual_stock_get(weapon);
+}
+
+zr_multi_pap_set_effective_stock(weapon, target_stock)
+{
+    target_stock = Int(target_stock);
+
+    if (target_stock < 0)
+    {
+        target_stock = 0;
+    }
+
+    self SetWeaponAmmoStock(weapon, target_stock);
+
+    actual_stock = self GetWeaponAmmoStock(weapon);
+    virtual_stock = target_stock - actual_stock;
+
+    if (virtual_stock < 0)
+    {
+        virtual_stock = 0;
+    }
+
+    self zr_multi_pap_virtual_stock_set(weapon, virtual_stock);
+    return actual_stock;
+}
+
+zr_multi_pap_take_reserve(weapon, amount)
+{
+    amount = Int(amount);
+
+    if (amount <= 0)
+    {
+        return 0;
+    }
+
+    remaining = amount;
+    virtual_stock = self zr_multi_pap_virtual_stock_get(weapon);
+
+    if (virtual_stock > 0)
+    {
+        use_virtual = remaining;
+
+        if (use_virtual > virtual_stock)
+        {
+            use_virtual = virtual_stock;
+        }
+
+        self zr_multi_pap_virtual_stock_set(weapon, virtual_stock - use_virtual);
+        remaining -= use_virtual;
+    }
+
+    if (remaining > 0)
+    {
+        native_stock = self GetWeaponAmmoStock(weapon);
+        use_native = remaining;
+
+        if (use_native > native_stock)
+        {
+            use_native = native_stock;
+        }
+
+        if (use_native > 0)
+        {
+            self SetWeaponAmmoStock(weapon, native_stock - use_native);
+            remaining -= use_native;
+        }
+    }
+
+    return amount - remaining;
+}
+
+zr_multi_pap_reload_virtual_mag(weapon, pap_level)
+{
+    capacity = zr_multi_pap_virtual_capacity(weapon, pap_level);
+
+    if (capacity <= 0)
+    {
+        self zr_multi_pap_virtual_set(weapon, 0);
+        return;
+    }
+
+    available = self zr_multi_pap_effective_stock(weapon);
+    load = capacity;
+
+    if (load > available)
+    {
+        load = available;
+    }
+
+    loaded = self zr_multi_pap_take_reserve(weapon, load);
+    self zr_multi_pap_virtual_set(weapon, loaded);
+}
+
+zr_multi_pap_expose_virtual_stock(weapon)
+{
+    native_stock = self GetWeaponAmmoStock(weapon);
+    virtual_stock = self zr_multi_pap_virtual_stock_get(weapon);
+
+    if (native_stock > 0 || virtual_stock <= 0)
+    {
+        return native_stock;
+    }
+
+    // The engine cannot reload from the hidden reserve. When the native pool
+    // reaches zero, expose as much of the virtual reserve as T5 will accept.
+    self SetWeaponAmmoStock(weapon, virtual_stock);
+    new_native_stock = self GetWeaponAmmoStock(weapon);
+    moved = new_native_stock - native_stock;
+
+    if (moved > 0)
+    {
+        self zr_multi_pap_virtual_stock_set(weapon, virtual_stock - moved);
+    }
+
+    return new_native_stock;
+}
+
 zr_migrate_pap_tuning()
 {
     version = GetDvarInt("zr_pap_tuning_version");
@@ -644,23 +812,26 @@ zr_multi_pap_apply_full_ammo(weapon, pap_level)
     effective_clip = zr_multi_pap_clip_target(weapon, pap_level);
     target_stock = zr_multi_pap_stock_target(weapon, pap_level);
 
-    // T5 clamps the visible clip to the weapon asset's native size. Keep that
-    // native clip full and emulate the extra magazine rounds from reserve.
+    // Both clip size and reserve are clamped by T5 weapon assets. Keep the
+    // engine-visible pools legal and store the overflow in per-weapon virtual
+    // magazine/reserve counters.
     self SetWeaponAmmoClip(weapon, native_clip);
-    self SetWeaponAmmoStock(weapon, target_stock);
+    actual_stock = self zr_multi_pap_set_effective_stock(weapon, target_stock);
     self zr_multi_pap_virtual_reset(weapon, pap_level);
+    virtual_stock = self zr_multi_pap_virtual_stock_get(weapon);
 
-    actual_stock = self GetWeaponAmmoStock(weapon);
-
-    if (actual_stock < target_stock)
+    if (virtual_stock > 0)
     {
-        println("[T5ZR] Multi-PAP warning: engine clamped reserve for " + weapon + " target=" + target_stock + " actual=" + actual_stock);
+        println("[T5ZR] Multi-PAP reserve virtualized for " + weapon + " target=" + target_stock +
+            " native=" + actual_stock + " virtual=" + virtual_stock);
     }
 
     println("[T5ZR] Multi-PAP ammo " + weapon + " native_clip=" + native_clip +
         " effective_clip=" + effective_clip +
-        " virtual_extra=" + zr_multi_pap_virtual_capacity(weapon, pap_level) +
-        " reserve=" + actual_stock);
+        " virtual_mag=" + zr_multi_pap_virtual_capacity(weapon, pap_level) +
+        " reserve_native=" + actual_stock +
+        " reserve_virtual=" + virtual_stock +
+        " reserve_effective=" + self zr_multi_pap_effective_stock(weapon));
 }
 
 zr_multi_pap_ammo_monitor()
@@ -705,22 +876,23 @@ zr_multi_pap_ammo_monitor()
 
         if (weapon == last_weapon)
         {
-            // Native reload detected: refill the virtual part of the magazine.
+            // Native reload detected. The virtual part of the magazine is
+            // loaded from the effective reserve now, instead of charging the
+            // reserve again while each virtual round is fired.
             if (clip > last_clip)
             {
-                self zr_multi_pap_virtual_reset(weapon, pap_level);
+                self zr_multi_pap_reload_virtual_mag(weapon, pap_level);
+                stock = self GetWeaponAmmoStock(weapon);
             }
 
-            // T5 cannot display ammo above WeaponClipSize(). When shots reduce
-            // the native clip, spend virtual rounds from reserve and put those
-            // rounds straight back into the native clip. The player therefore
-            // gets the configured effective magazine size before reloading.
+            // Virtual magazine rounds are already loaded ammunition. Refill the
+            // engine clip without subtracting native reserve a second time.
             if (clip < last_clip)
             {
                 shots = last_clip - clip;
                 virtual_remaining = self zr_multi_pap_virtual_get(weapon, pap_level);
 
-                if (virtual_remaining > 0 && stock > 0)
+                if (virtual_remaining > 0)
                 {
                     topup = shots;
 
@@ -729,25 +901,18 @@ zr_multi_pap_ammo_monitor()
                         topup = virtual_remaining;
                     }
 
-                    if (topup > stock)
-                    {
-                        topup = stock;
-                    }
-
                     if (topup > 0)
                     {
                         self SetWeaponAmmoClip(weapon, clip + topup);
-                        self SetWeaponAmmoStock(weapon, stock - topup);
                         self zr_multi_pap_virtual_set(weapon, virtual_remaining - topup);
 
                         clip = self GetWeaponAmmoClip(weapon);
-                        stock = self GetWeaponAmmoStock(weapon);
                     }
                 }
             }
 
-            // Max Ammo / ammo purchases normally refill to the stock asset
-            // reserve. Expand that refill to the configured PAP reserve cap.
+            // Max Ammo / ammo purchases refill the native reserve. Rebuild the
+            // hidden overflow as well when a stock refill is observable.
             if (stock > last_stock)
             {
                 base_stock = WeaponStartAmmo(weapon);
@@ -755,10 +920,16 @@ zr_multi_pap_ammo_monitor()
 
                 if (stock >= base_stock && target_stock > stock)
                 {
-                    self SetWeaponAmmoStock(weapon, target_stock);
-                    stock = self GetWeaponAmmoStock(weapon);
+                    stock = self zr_multi_pap_set_effective_stock(weapon, target_stock);
+
+                    if (clip >= WeaponClipSize(weapon))
+                    {
+                        self zr_multi_pap_virtual_reset(weapon, pap_level);
+                    }
                 }
             }
+
+            stock = self zr_multi_pap_expose_virtual_stock(weapon);
         }
 
         last_weapon = weapon;
@@ -1212,10 +1383,20 @@ zr_save_player(slot, player)
         if (w < weapon_count)
         {
             weapon = weapons[w];
+            pap_level = player zr_multi_pap_get_level(weapon);
+            saved_clip = player GetWeaponAmmoClip(weapon);
+            saved_stock = player GetWeaponAmmoStock(weapon);
+
+            if (pap_level > 1 && zr_multi_pap_weapon_supported(weapon))
+            {
+                saved_clip += player zr_multi_pap_virtual_get(weapon, pap_level);
+                saved_stock = player zr_multi_pap_effective_stock(weapon);
+            }
+
             zr_store(zr_weapon_key(slot, w, "name"), weapon);
-            zr_store(zr_weapon_key(slot, w, "clip"), "" + player GetWeaponAmmoClip(weapon));
-            zr_store(zr_weapon_key(slot, w, "stock"), "" + player GetWeaponAmmoStock(weapon));
-            zr_store(zr_weapon_key(slot, w, "pap_level"), "" + player zr_multi_pap_get_level(weapon));
+            zr_store(zr_weapon_key(slot, w, "clip"), "" + saved_clip);
+            zr_store(zr_weapon_key(slot, w, "stock"), "" + saved_stock);
+            zr_store(zr_weapon_key(slot, w, "pap_level"), "" + pap_level);
         }
         else
         {
@@ -1526,7 +1707,9 @@ zr_print_pap_status()
                 " pap=" + pap_level +
                 " clip=" + player GetWeaponAmmoClip(weapon) +
                 " effective_clip=" + effective_clip +
-                " stock=" + player GetWeaponAmmoStock(weapon));
+                " stock_native=" + player GetWeaponAmmoStock(weapon) +
+                " stock_virtual=" + player zr_multi_pap_virtual_stock_get(weapon) +
+                " stock_effective=" + player zr_multi_pap_effective_stock(weapon));
         }
     }
 
@@ -1616,6 +1799,7 @@ zr_command_set_pap_level()
     else
     {
         player zr_multi_pap_virtual_reset(weapon, pap_level);
+        player zr_multi_pap_virtual_stock_set(weapon, 0);
     }
 
     zr_update_saved_pap_level_for_player(player, weapon, pap_level);
@@ -1942,8 +2126,9 @@ zr_apply_saved_primary_state(slot, weapon_slot)
         return;
     }
 
-    self SetWeaponAmmoClip(weapon, GetDvarInt(zr_weapon_key(slot, weapon_slot, "clip")));
-    self SetWeaponAmmoStock(weapon, GetDvarInt(zr_weapon_key(slot, weapon_slot, "stock")));
+    saved_clip = GetDvarInt(zr_weapon_key(slot, weapon_slot, "clip"));
+    saved_stock = GetDvarInt(zr_weapon_key(slot, weapon_slot, "stock"));
+    saved_pap_level = 0;
 
     if (IsDefined(level.zr_resume_save_format) && level.zr_resume_save_format >= 8)
     {
@@ -1955,6 +2140,36 @@ zr_apply_saved_primary_state(slot, weapon_slot)
         }
 
         self zr_multi_pap_set_level(weapon, saved_pap_level);
+    }
+
+    if (saved_pap_level > 1 && zr_multi_pap_weapon_supported(weapon))
+    {
+        native_clip = saved_clip;
+        virtual_loaded = 0;
+        native_clip_cap = WeaponClipSize(weapon);
+
+        if (native_clip > native_clip_cap)
+        {
+            virtual_loaded = native_clip - native_clip_cap;
+            native_clip = native_clip_cap;
+        }
+
+        virtual_capacity = zr_multi_pap_virtual_capacity(weapon, saved_pap_level);
+        if (virtual_loaded > virtual_capacity)
+        {
+            virtual_loaded = virtual_capacity;
+        }
+
+        self SetWeaponAmmoClip(weapon, native_clip);
+        self zr_multi_pap_virtual_set(weapon, virtual_loaded);
+        self zr_multi_pap_set_effective_stock(weapon, saved_stock);
+    }
+    else
+    {
+        self SetWeaponAmmoClip(weapon, saved_clip);
+        self SetWeaponAmmoStock(weapon, saved_stock);
+        self zr_multi_pap_virtual_set(weapon, 0);
+        self zr_multi_pap_virtual_stock_set(weapon, 0);
     }
 }
 
@@ -2475,7 +2690,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.14";
+    level.zr_mod_version = "0.8.0-beta.15";
     level.zr_pending_resume = false;
     level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
@@ -2520,7 +2735,9 @@ main()
     if (GetDvar("zr_hud_zombies") == "")
         SetDvar("zr_hud_zombies", "1");
     if (GetDvar("zr_hud_scale_pct") == "")
-        SetDvar("zr_hud_scale_pct", "60");
+        SetDvar("zr_hud_scale_pct", "15");
+    if (GetDvar("zr_hud_scale_version") == "")
+        SetDvar("zr_hud_scale_version", "0");
 
     if (GetDvar("zr_pap_multi") == "")
         SetDvar("zr_pap_multi", "1");
@@ -2541,6 +2758,7 @@ main()
     if (GetDvar("zr_pap_tuning_version") == "")
         SetDvar("zr_pap_tuning_version", "0");
 
+    zr_migrate_hud_scale();
     zr_migrate_pap_tuning();
     zr_init_multi_pap();
 
@@ -2549,5 +2767,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, PAP repair + point repair commands + per-weapon pricing)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, small HUD + virtual PAP reserve + repair commands)");
 }
