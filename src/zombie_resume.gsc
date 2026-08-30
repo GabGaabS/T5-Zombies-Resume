@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.18 / save format v8
+// v0.8.0-beta.19 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -13,7 +13,6 @@
 // - Bowie/melee + tactical grenade state (including cymbal monkeys)
 // - optional corner HUD: round time, total run time and zombies remaining
 // - compact autosave toast at the top-center of the screen
-// - backward-compatible reader for legacy save formats v5, v6 and v7
 // - multi-level Pack-a-Punch for supported upgraded firearms + selected Wonder Weapons
 // - persistent 4-slot coop roster keyed by GUID; absent players are never erased
 //
@@ -163,10 +162,11 @@ zr_save_toast_player()
     hud.alignY = "top";
     hud.x = 0;
     hud.y = 36;
+    hud.archived = false;
     hud.foreground = true;
     hud.sort = 100;
-    hud.font = "default";
-    hud.fontScale = 0.28;
+    hud.font = "small";
+    hud.fontscale = 1.0;
     hud.alpha = 1;
 
     // Static text only: changing SetText strings allocates T5 configstrings.
@@ -206,29 +206,6 @@ zr_hud_scale()
     }
 
     return pct / 100.0;
-}
-
-zr_migrate_hud_scale()
-{
-    version = GetDvarInt("zr_hud_scale_version");
-
-    if (version >= 2)
-    {
-        return;
-    }
-
-    old_pct = GetDvarInt("zr_hud_scale_pct");
-
-    // beta.14-beta.17 interpreted this dvar as a fractional default-font
-    // scale. beta.18 instead uses the stock small font where 100 = 1.0.
-    // Migrate the known old small values so existing configs are readable.
-    if (old_pct <= 25 || old_pct == 60)
-    {
-        SetDvar("zr_hud_scale_pct", "100");
-    }
-
-    SetDvar("zr_hud_scale_version", "2");
-    println("[T5ZR] HUD migrated to stock-small sizing; 100 percent = engine scale 1.0.");
 }
 
 zr_create_corner_hud(point, x, y)
@@ -530,8 +507,22 @@ zr_multi_pap_set_level(weapon, pap_level)
         return;
     }
 
+    pap_level = Int(pap_level);
+
+    if (pap_level < 0)
+    {
+        pap_level = 0;
+    }
+
+    max_level = zr_multi_pap_max_level();
+
+    if (pap_level > max_level)
+    {
+        pap_level = max_level;
+    }
+
     slot = self zr_multi_pap_ensure_runtime_slot(weapon);
-    self.zr_multi_pap_weapon_levels[slot] = Int(pap_level);
+    self.zr_multi_pap_weapon_levels[slot] = pap_level;
 }
 
 zr_multi_pap_max_level()
@@ -787,46 +778,6 @@ zr_multi_pap_expose_virtual_stock(weapon)
     return new_native_stock;
 }
 
-zr_migrate_pap_tuning()
-{
-    version = GetDvarInt("zr_pap_tuning_version");
-
-    if (version >= 3)
-    {
-        return;
-    }
-
-    // Preserve custom tuning. Only upgrade values matching previous T5ZR
-    // defaults; genuinely custom values are left untouched.
-    damage_pct = GetDvarInt("zr_pap_damage_percent");
-    clip_pct = GetDvarInt("zr_pap_clip_percent");
-    stock_pct = GetDvarInt("zr_pap_stock_percent");
-    max_level = GetDvarInt("zr_pap_max_level");
-
-    if (damage_pct == 20 || damage_pct == 50)
-    {
-        SetDvar("zr_pap_damage_percent", "60");
-    }
-
-    if (clip_pct == 15 || clip_pct == 35)
-    {
-        SetDvar("zr_pap_clip_percent", "45");
-    }
-
-    if (stock_pct == 20 || stock_pct == 50)
-    {
-        SetDvar("zr_pap_stock_percent", "60");
-    }
-
-    if (max_level == 5)
-    {
-        SetDvar("zr_pap_max_level", "8");
-    }
-
-    SetDvar("zr_pap_tuning_version", "3");
-    println("[T5ZR] Multi-PAP tuning migrated to beta.12 defaults (60/45/60, PAP max 8 when prior defaults were detected).");
-}
-
 zr_multi_pap_apply_full_ammo(weapon, pap_level)
 {
     native_clip = WeaponClipSize(weapon);
@@ -869,6 +820,11 @@ zr_multi_pap_ammo_monitor()
 
         if (GetDvarInt("zr_pap_multi") != 1)
         {
+            // Avoid comparing against stale ammo values if multi-PAP is
+            // disabled and later re-enabled during the same session.
+            last_weapon = "none";
+            last_clip = 0;
+            last_stock = 0;
             continue;
         }
 
@@ -1385,9 +1341,33 @@ zr_save_player(slot, player)
 
     zr_store(zr_player_key(slot, "guid"), guid);
     zr_store(zr_player_key(slot, "name"), player.name);
+    current_weapon = player GetCurrentWeapon();
+    current_is_primary = false;
+
+    for (i = 0; i < weapon_count; i++)
+    {
+        if (weapons[i] == current_weapon)
+        {
+            current_is_primary = true;
+            break;
+        }
+    }
+
+    if (!current_is_primary)
+    {
+        if (weapon_count > 0)
+        {
+            current_weapon = weapons[0];
+        }
+        else
+        {
+            current_weapon = "none";
+        }
+    }
+
     zr_store(zr_player_key(slot, "score"), "" + score);
     zr_store(zr_player_key(slot, "score_total"), "" + total);
-    zr_store(zr_player_key(slot, "current_weapon"), player GetCurrentWeapon());
+    zr_store(zr_player_key(slot, "current_weapon"), current_weapon);
     zr_store(zr_player_key(slot, "weapon_count"), "" + weapon_count);
 
     zr_save_player_stats(slot, player);
@@ -1659,7 +1639,9 @@ zr_watch_round_number()
 
 zr_print_status()
 {
-    println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + level.round_number);
+    current_round = zr_int_or(level.round_number, 0);
+
+    println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + current_round);
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
     println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume") + " preserve_roster=" + level.zr_preserve_saved_roster);
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
@@ -1676,7 +1658,7 @@ zr_print_status()
             " w2=" + GetDvar(zr_weapon_key(slot, 2, "name")));
     }
 
-    zr_show_message("^2T5ZR:^7 actif - manche " + level.round_number + " / save " + GetDvar("zr_sv_round"));
+    zr_show_message("^2T5ZR:^7 actif - manche " + current_round + " / save " + GetDvar("zr_sv_round"));
 }
 
 zr_get_command_player()
@@ -1892,12 +1874,6 @@ zr_watch_controls()
 {
     for (;;)
     {
-        if (GetDvarInt("zr_save_now") == 1)
-        {
-            SetDvar("zr_save_now", "0");
-            zr_save_game("manual");
-        }
-
         if (GetDvarInt("zr_status") == 1)
         {
             SetDvar("zr_status", "0");
@@ -2149,19 +2125,15 @@ zr_apply_saved_primary_state(slot, weapon_slot)
 
     saved_clip = GetDvarInt(zr_weapon_key(slot, weapon_slot, "clip"));
     saved_stock = GetDvarInt(zr_weapon_key(slot, weapon_slot, "stock"));
-    saved_pap_level = 0;
+    saved_pap_level = GetDvarInt(zr_weapon_key(slot, weapon_slot, "pap_level"));
 
-    if (IsDefined(level.zr_resume_save_format) && level.zr_resume_save_format >= 8)
+    if (saved_pap_level < 0)
     {
-        saved_pap_level = GetDvarInt(zr_weapon_key(slot, weapon_slot, "pap_level"));
-
-        if (saved_pap_level < 0)
-        {
-            saved_pap_level = 0;
-        }
-
-        self zr_multi_pap_set_level(weapon, saved_pap_level);
+        saved_pap_level = 0;
     }
+
+    self zr_multi_pap_set_level(weapon, saved_pap_level);
+    saved_pap_level = self zr_multi_pap_get_level(weapon);
 
     if (saved_pap_level > 1 && zr_multi_pap_weapon_supported(weapon))
     {
@@ -2268,12 +2240,7 @@ zr_restore_player_slot(slot)
         wait 0.05;
     }
 
-    // Melee/tactical fields were introduced in v7. Never consume stale
-    // archived values when resuming a legacy v5/v6 snapshot.
-    if (IsDefined(level.zr_resume_save_format) && level.zr_resume_save_format >= 7)
-    {
-        self zr_restore_player_offhand(slot);
-    }
+    self zr_restore_player_offhand(slot);
 
     current = GetDvar(zr_player_key(slot, "current_weapon"));
 
@@ -2626,9 +2593,9 @@ zr_prepare_resume()
 
     save_format = GetDvarInt("zr_sv_format");
 
-    if (save_format != 5 && save_format != 6 && save_format != 7 && save_format != 8)
+    if (save_format != 8)
     {
-        println("[T5ZR] Resume aborted: unsupported save format " + GetDvar("zr_sv_format") + ".");
+        println("[T5ZR] Resume aborted: only save format v8 is supported; found v" + GetDvar("zr_sv_format") + ".");
         SetDvar("zr_resume", "0");
         return;
     }
@@ -2651,19 +2618,9 @@ zr_prepare_resume()
 
     level.zr_pending_resume = true;
     level.zr_suppress_autosave = true;
-    level.zr_resume_save_format = save_format;
     level.zr_preserve_saved_roster = true;
     level.zr_roster_initialized = true;
-
-    if (save_format >= 7)
-    {
-        level.zr_total_time_base_seconds = GetDvarInt("zr_sv_total_time_seconds");
-    }
-    else
-    {
-        level.zr_total_time_base_seconds = 0;
-    }
-
+    level.zr_total_time_base_seconds = GetDvarInt("zr_sv_total_time_seconds");
     level.zr_session_start_time = 0;
 
     while (!IsDefined(level.round_number))
@@ -2673,34 +2630,11 @@ zr_prepare_resume()
 
     level.round_number = saved_round;
 
-    // Dog scheduler fields were introduced in v6. A v5 snapshot must keep
-    // stock scheduling rather than accidentally consuming stale archived v6/v7
-    // values that may still exist in config.cfg.
-    if (save_format >= 6)
-    {
-        zr_restore_round_scheduler();
-    }
-    else
-    {
-        println("[T5ZR] Legacy v5 resume: using stock hellhound scheduler.");
-    }
+    zr_restore_round_scheduler();
 
     SetDvar("zr_resume", "0");
 
-    println("[T5ZR] Prepared v" + save_format + " resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
-
-    if (save_format == 5)
-    {
-        println("[T5ZR] Legacy v5 compatibility: no saved dog scheduler, total run time, offhand or multi-PAP state; next autosave migrates to v8.");
-    }
-    else if (save_format == 6)
-    {
-        println("[T5ZR] Legacy v6 compatibility: no saved total run time, offhand or multi-PAP state; next autosave migrates to v8.");
-    }
-    else if (save_format == 7)
-    {
-        println("[T5ZR] Legacy v7 compatibility: no saved multi-PAP levels; upgraded weapons resume at PAP level 1 and next autosave migrates to v8.");
-    }
+    println("[T5ZR] Prepared v8 resume at round " + level.round_number + " for " + GetDvar("zr_sv_player_count") + " saved player(s).");
 
     // World restoration is separate from player spawn restoration.
     level thread zr_restore_world();
@@ -2711,9 +2645,8 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.18";
+    level.zr_mod_version = "0.8.0-beta.19";
     level.zr_pending_resume = false;
-    level.zr_resume_save_format = 8;
     level.zr_suppress_autosave = false;
     level.zr_total_time_base_seconds = 0;
     level.zr_session_start_time = 0;
@@ -2726,14 +2659,13 @@ main()
         level.zr_slot_claimed[i] = false;
     }
 
-    if (GetDvar("zr_save_now") == "")
-        SetDvar("zr_save_now", "0");
-    if (GetDvar("zr_status") == "")
-        SetDvar("zr_status", "0");
     if (GetDvar("zr_resume") == "")
         SetDvar("zr_resume", "0");
-    // Command triggers are always reset on map load so an old console value
-    // cannot fire again after a restart.
+
+    // One-shot command triggers are always reset on map load so a stale value
+    // cannot fire after map_restart.
+    SetDvar("zr_status", "0");
+    SetDvar("zr_clear_save", "0");
     SetDvar("zr_pap_status", "0");
     SetDvar("zr_pap_set_level", "0");
     SetDvar("zr_give_points", "0");
@@ -2745,8 +2677,6 @@ main()
     if (GetDvar("zr_points_amount") == "")
         SetDvar("zr_points_amount", "0");
 
-    if (GetDvar("zr_clear_save") == "")
-        SetDvar("zr_clear_save", "0");
     if (GetDvar("zr_hud") == "")
         SetDvar("zr_hud", "1");
     if (GetDvar("zr_hud_round_time") == "")
@@ -2757,8 +2687,6 @@ main()
         SetDvar("zr_hud_zombies", "1");
     if (GetDvar("zr_hud_scale_pct") == "")
         SetDvar("zr_hud_scale_pct", "100");
-    if (GetDvar("zr_hud_scale_version") == "")
-        SetDvar("zr_hud_scale_version", "0");
 
     if (GetDvar("zr_pap_multi") == "")
         SetDvar("zr_pap_multi", "1");
@@ -2776,11 +2704,7 @@ main()
         SetDvar("zr_pap_clip_percent", "45");
     if (GetDvar("zr_pap_stock_percent") == "")
         SetDvar("zr_pap_stock_percent", "60");
-    if (GetDvar("zr_pap_tuning_version") == "")
-        SetDvar("zr_pap_tuning_version", "0");
 
-    zr_migrate_hud_scale();
-    zr_migrate_pap_tuning();
     zr_init_multi_pap();
 
     level thread zr_watch_round_number();
@@ -2788,5 +2712,5 @@ main()
     level thread zr_watch_players();
     level thread zr_prepare_resume();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, stock-small HUD + virtual PAP reserve + repair commands)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8 only, hardened HUD/PAP/save runtime)");
 }
