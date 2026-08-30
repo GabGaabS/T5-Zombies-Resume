@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.17-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.18-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.17` fixes the HUD creation path by calling BO1's stock font helper as a player method, which initializes the client font element with the expected stock parent/height/fontscale setup. The beta.15 virtual PAP reserve and beta.14 repair commands remain available.
+`0.8.0-beta.18` replaces the problematic fractional default-font HUD with direct client HUD elements using T5's stock `small` font. `zr_hud_scale_pct=100` now maps to engine font scale `1.0`, avoiding the giant rendering seen with values such as `0.08`/`0.15` on current Plutonium T5. The beta.15 virtual PAP reserve and beta.14 repair commands remain available.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.17 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.18 loaded
 ```
 
 ### Optional Resume Game button
@@ -213,20 +213,22 @@ The HUD uses the original corner layout:
 - top-right: `Total: M:SS` (or `H:MM:SS` after one hour);
 - bottom-right: `Zombies: N`.
 
-The HUD uses BO1's stock `maps\_hud_util::createFontString()` helper **as a method on the player**, which is the stock calling pattern that initializes a proper client font element. One cohesive text element is used per corner, and live values are updated through Plutonium `SetTextUnlimited()` to stay configstring-safe.
+The HUD now uses direct `NewClientHudElem` elements with T5's stock `small` font. This avoids the SP/MP `createFontString()` calling-convention mismatch and the giant fractional-scale rendering seen during r5346 testing. One cohesive text element is used per corner, and live values are updated through Plutonium `SetTextUnlimited()` to stay configstring-safe.
 
 HUD size is configurable with an archived percentage:
 
 ```text
-set zr_hud_scale_pct 15
+set zr_hud_scale_pct 100
 ```
 
-The default is 15. beta.15 automatically migrates the old default value 60 to 15 while preserving deliberate custom values. To make it smaller, for example:
+The default is 100, meaning T5 engine font scale 1.0 with the stock `small` font. beta.18 migrates the old beta.14-beta.17 values (including 8/15/60) to 100. To make it smaller, for example:
 
 ```text
-set zr_hud_scale_pct 12
+set zr_hud_scale_pct 75
 map_restart
 ```
+
+The runtime clamps the percentage to 50-200 for this HUD path.
 
 Console toggles:
 
