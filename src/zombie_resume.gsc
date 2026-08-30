@@ -2601,6 +2601,11 @@ zr_restore_on_spawn()
             self thread zr_multi_pap_ammo_monitor();
         }
 
+        while (!IsDefined(level.zr_resume_bootstrap_ready) || !level.zr_resume_bootstrap_ready)
+        {
+            wait 0.01;
+        }
+
         if (!IsDefined(level.zr_pending_resume) || !level.zr_pending_resume)
         {
             continue;
@@ -2640,6 +2645,7 @@ zr_prepare_resume()
 {
     if (GetDvarInt("zr_resume") != 1)
     {
+        level.zr_resume_bootstrap_ready = true;
         return;
     }
 
@@ -2647,6 +2653,7 @@ zr_prepare_resume()
     {
         println("[T5ZR] Resume aborted: no valid save.");
         SetDvar("zr_resume", "0");
+        level.zr_resume_bootstrap_ready = true;
         return;
     }
 
@@ -2656,6 +2663,7 @@ zr_prepare_resume()
     {
         println("[T5ZR] Resume aborted: only save format v8 is supported; found v" + GetDvar("zr_sv_format") + ".");
         SetDvar("zr_resume", "0");
+        level.zr_resume_bootstrap_ready = true;
         return;
     }
 
@@ -2663,6 +2671,7 @@ zr_prepare_resume()
     {
         println("[T5ZR] Resume aborted: saved map=" + GetDvar("zr_sv_map") + " current=" + zr_current_map());
         SetDvar("zr_resume", "0");
+        level.zr_resume_bootstrap_ready = true;
         return;
     }
 
@@ -2672,6 +2681,7 @@ zr_prepare_resume()
     {
         println("[T5ZR] Resume aborted: invalid saved round.");
         SetDvar("zr_resume", "0");
+        level.zr_resume_bootstrap_ready = true;
         return;
     }
 
@@ -2681,6 +2691,7 @@ zr_prepare_resume()
     level.zr_roster_initialized = true;
     level.zr_total_time_base_seconds = GetDvarInt("zr_sv_total_time_seconds");
     level.zr_session_start_time = 0;
+    level.zr_resume_bootstrap_ready = true;
 
     while (!IsDefined(level.round_number))
     {
@@ -2706,6 +2717,7 @@ main()
 {
     level.zr_mod_version = "0.8.0-beta.19";
     level.zr_pending_resume = false;
+    level.zr_resume_bootstrap_ready = false;
     level.zr_suppress_autosave = false;
     level.zr_total_time_base_seconds = 0;
     level.zr_session_start_time = 0;
@@ -2768,8 +2780,8 @@ main()
 
     level thread zr_watch_round_number();
     level thread zr_watch_controls();
-    level thread zr_watch_players();
     level thread zr_prepare_resume();
+    level thread zr_watch_players();
 
     println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8 only, hardened HUD/PAP/save runtime)");
 }
