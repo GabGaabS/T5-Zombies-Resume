@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.19 / save format v8
+// v0.8.0-beta.20 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -309,13 +309,28 @@ zr_store(key, value)
     SetSavedDvar(key, value);
 }
 
+zr_flag_exists(flag_name)
+{
+    return level common_scripts\utility::flag_exists(flag_name);
+}
+
 zr_flag_is_set(flag_name)
 {
+    if (!zr_flag_exists(flag_name))
+    {
+        return false;
+    }
+
     return common_scripts\utility::flag(flag_name);
 }
 
 zr_set_flag(flag_name)
 {
+    if (!zr_flag_exists(flag_name))
+    {
+        common_scripts\utility::flag_init(flag_name);
+    }
+
     if (!common_scripts\utility::flag(flag_name))
     {
         common_scripts\utility::flag_set(flag_name);
@@ -324,7 +339,7 @@ zr_set_flag(flag_name)
 
 zr_clear_flag(flag_name)
 {
-    if (common_scripts\utility::flag(flag_name))
+    if (zr_flag_exists(flag_name) && common_scripts\utility::flag(flag_name))
     {
         common_scripts\utility::flag_clear(flag_name);
     }
@@ -1191,9 +1206,23 @@ zr_clear_saved_player(slot)
     }
 }
 
+zr_world_flag_key(index)
+{
+    return "zr_sv_world_flag" + index;
+}
+
 zr_clear_world_save()
 {
     zr_store("zr_sv_world_adapter", "none");
+    zr_store("zr_sv_world_power", "0");
+    zr_store("zr_sv_world_flag_count", "0");
+
+    for (i = 0; i < 32; i++)
+    {
+        zr_store(zr_world_flag_key(i), "");
+    }
+
+    // Tiny fallback for one existing beta.19 Kino v8 snapshot.
     zr_store("zr_sv_kino_power", "0");
     zr_store("zr_sv_kino_magic_box_foyer1", "0");
     zr_store("zr_sv_kino_magic_box_crematorium1", "0");
@@ -1436,35 +1465,182 @@ zr_save_player(slot, player)
     }
 }
 
-zr_save_kino_world()
+zr_world_route_candidates()
 {
-    zr_store("zr_sv_world_adapter", "kino_v1");
-    zr_store("zr_sv_kino_power", zr_bool_string(zr_flag_is_set("power_on")));
+    flags = [];
+    map_name = zr_current_map();
 
-    // Kino's permanent route flags come directly from theater_zone_init().
-    zr_store("zr_sv_kino_magic_box_foyer1", zr_bool_string(zr_flag_is_set("magic_box_foyer1")));
-    zr_store("zr_sv_kino_magic_box_crematorium1", zr_bool_string(zr_flag_is_set("magic_box_crematorium1")));
-    zr_store("zr_sv_kino_vip_to_dining", zr_bool_string(zr_flag_is_set("vip_to_dining")));
-    zr_store("zr_sv_kino_magic_box_alleyway1", zr_bool_string(zr_flag_is_set("magic_box_alleyway1")));
-    zr_store("zr_sv_kino_dining_to_dressing", zr_bool_string(zr_flag_is_set("dining_to_dressing")));
-    zr_store("zr_sv_kino_magic_box_dressing1", zr_bool_string(zr_flag_is_set("magic_box_dressing1")));
-    zr_store("zr_sv_kino_magic_box_west_balcony2", zr_bool_string(zr_flag_is_set("magic_box_west_balcony2")));
-    zr_store("zr_sv_kino_magic_box_west_balcony1", zr_bool_string(zr_flag_is_set("magic_box_west_balcony1")));
-    zr_store("zr_sv_kino_curtains_done", zr_bool_string(zr_flag_is_set("curtains_done")));
+    if (map_name == "zombie_theater")
+    {
+        flags[flags.size] = "magic_box_foyer1";
+        flags[flags.size] = "magic_box_crematorium1";
+        flags[flags.size] = "vip_to_dining";
+        flags[flags.size] = "magic_box_alleyway1";
+        flags[flags.size] = "dining_to_dressing";
+        flags[flags.size] = "magic_box_dressing1";
+        flags[flags.size] = "magic_box_west_balcony2";
+        flags[flags.size] = "magic_box_west_balcony1";
+    }
+    else if (map_name == "zombie_pentagon")
+    {
+        flags[flags.size] = "conf1_hall1";
+        flags[flags.size] = "war_room_entry";
+        flags[flags.size] = "war_room_special";
+        flags[flags.size] = "war_room_stair";
+        flags[flags.size] = "war_room_west";
+        flags[flags.size] = "war_room_elevator";
+        flags[flags.size] = "labs_enabled";
+        flags[flags.size] = "lab1_level3";
+        flags[flags.size] = "lab2_level3";
+        flags[flags.size] = "lab3_level3";
+    }
+    else if (map_name == "zombie_cosmodrome")
+    {
+        flags[flags.size] = "no_mans_land";
+        flags[flags.size] = "base_entry_group";
+        flags[flags.size] = "storage_group";
+        flags[flags.size] = "power_group";
+        flags[flags.size] = "roof_connector_dropoff";
+        flags[flags.size] = "rocket_group";
+        flags[flags.size] = "centrifuge";
+        flags[flags.size] = "centrifuge2power";
+        flags[flags.size] = "power2centrifuge";
+        flags[flags.size] = "tunnel_centrifuge_entry";
+        flags[flags.size] = "base_entry_2_power";
+        flags[flags.size] = "power_interior_2_roof";
+        flags[flags.size] = "catwalks_2_shed";
+        flags[flags.size] = "base_entry_2_storage";
+        flags[flags.size] = "storage_lander_area";
+        flags[flags.size] = "base_entry_2_north_path";
+        flags[flags.size] = "power_catwalk_access";
+    }
+    else if (map_name == "zombie_coast")
+    {
+        flags[flags.size] = "lighthouse_enter";
+        flags[flags.size] = "lighthouse_lagoon_enter";
+        flags[flags.size] = "start_beach_group";
+        flags[flags.size] = "enter_shipfront_bottom";
+        flags[flags.size] = "plankA_enter";
+        flags[flags.size] = "shipfront_far_enter";
+        flags[flags.size] = "shipfront_deck_storage";
+        flags[flags.size] = "shipfront_bottom_storage";
+        flags[flags.size] = "shipback_far_enter";
+        flags[flags.size] = "shipback_level2_enter";
+        flags[flags.size] = "ship_house3";
+        flags[flags.size] = "residence_beach_group";
+        flags[flags.size] = "side_beach_debris";
+        flags[flags.size] = "plankB_enter";
+        flags[flags.size] = "balcony_enter";
+        flags[flags.size] = "res_2_lighthouse1";
+        flags[flags.size] = "lighthouse_residence_front";
+        flags[flags.size] = "lighthouse2_enter";
+        flags[flags.size] = "catwalk_enter";
+    }
+    else if (map_name == "zombie_temple")
+    {
+        flags[flags.size] = "start_to_pressure";
+        flags[flags.size] = "start_to_waterfall_upper";
+        flags[flags.size] = "pressure_to_cave01";
+        flags[flags.size] = "waterfall_to_tunnel";
+        flags[flags.size] = "cave01_to_cave02";
+        flags[flags.size] = "cave03_to_power";
+        flags[flags.size] = "cave_water_to_power";
+        flags[flags.size] = "cave_water_to_waterfall";
+        flags[flags.size] = "cave02_to_cave_water";
+    }
+    else if (map_name == "zombie_moon")
+    {
+        flags[flags.size] = "receiving_exit";
+        flags[flags.size] = "catacombs_west";
+        flags[flags.size] = "tunnel_6_door1";
+        flags[flags.size] = "catacombs_east";
+        flags[flags.size] = "catacombs_east4";
+        flags[flags.size] = "catacombs_west4";
+        flags[flags.size] = "tunnel_11_door1";
+        flags[flags.size] = "tunnel_11_door2";
+        flags[flags.size] = "generator_exit_east";
+        flags[flags.size] = "exit_dig_east";
+        flags[flags.size] = "forest_enter_digsite";
+        flags[flags.size] = "digsite_group";
+        flags[flags.size] = "enter_forest_east";
+        flags[flags.size] = "dig_enter_east";
+    }
+    else if (map_name == "zombie_cod5_prototype")
+    {
+        flags[flags.size] = "start_2_box";
+        flags[flags.size] = "start_2_upstairs";
+        flags[flags.size] = "box_2_upstairs";
+    }
+    else if (map_name == "zombie_cod5_asylum")
+    {
+        flags[flags.size] = "north_door1";
+        flags[flags.size] = "north_upstairs_blocker";
+        flags[flags.size] = "upstairs_north_door1";
+        flags[flags.size] = "upstairs_north_door2";
+        flags[flags.size] = "magic_box_north";
+        flags[flags.size] = "south_upstairs_blocker";
+        flags[flags.size] = "south_access_1";
+        flags[flags.size] = "magic_box_south";
+    }
+    else if (map_name == "zombie_cod5_sumpf")
+    {
+        flags[flags.size] = "unlock_hospital_upstairs";
+        flags[flags.size] = "unlock_hospital_downstairs";
+        flags[flags.size] = "ne_magic_box";
+        flags[flags.size] = "nw_magic_box";
+        flags[flags.size] = "se_magic_box";
+        flags[flags.size] = "sw_magic_box";
+        flags[flags.size] = "northeast_building_unlocked";
+        flags[flags.size] = "northwest_building_unlocked";
+        flags[flags.size] = "southeast_building_unlocked";
+        flags[flags.size] = "southwest_building_unlocked";
+    }
+    else if (map_name == "zombie_cod5_factory")
+    {
+        flags[flags.size] = "enter_outside_east";
+        flags[flags.size] = "enter_outside_west";
+        flags[flags.size] = "enter_wnuen_building";
+        flags[flags.size] = "enter_wnuen_loading_dock";
+        flags[flags.size] = "enter_warehouse_building";
+        flags[flags.size] = "enter_warehouse_second_floor";
+        flags[flags.size] = "enter_tp_east";
+        flags[flags.size] = "enter_tp_south";
+        flags[flags.size] = "enter_tp_west";
+    }
 
-    // Only preserve the fully-linked state. A half-completed core/pad link is
-    // intentionally reset because its UI hints are driven by transient threads.
-    zr_store("zr_sv_kino_teleporter_linked", zr_bool_string(zr_flag_is_set("teleporter_linked")));
+    return flags;
 }
 
 zr_save_world()
 {
     zr_clear_world_save();
+    zr_store("zr_sv_world_adapter", "routes_v1");
+    zr_store("zr_sv_world_power", zr_bool_string(zr_flag_is_set("power_on")));
+
+    flags = zr_world_route_candidates();
+    saved_count = 0;
+
+    for (i = 0; i < flags.size && saved_count < 32; i++)
+    {
+        flag_name = flags[i];
+
+        if (zr_flag_is_set(flag_name))
+        {
+            zr_store(zr_world_flag_key(saved_count), flag_name);
+            saved_count++;
+        }
+    }
+
+    zr_store("zr_sv_world_flag_count", "" + saved_count);
 
     if (zr_current_map() == "zombie_theater")
     {
-        zr_save_kino_world();
+        zr_store("zr_sv_kino_curtains_done", zr_bool_string(zr_flag_is_set("curtains_done")));
+        zr_store("zr_sv_kino_teleporter_linked", zr_bool_string(zr_flag_is_set("teleporter_linked")));
     }
+
+    println("[T5ZR] World saved: map=" + zr_current_map() + " power=" +
+        GetDvar("zr_sv_world_power") + " open_routes=" + saved_count + ".");
 }
 
 zr_save_round_scheduler()
@@ -2715,7 +2891,7 @@ zr_prepare_resume()
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.19";
+    level.zr_mod_version = "0.8.0-beta.20";
     level.zr_pending_resume = false;
     level.zr_resume_bootstrap_ready = false;
     level.zr_suppress_autosave = false;
@@ -2783,5 +2959,5 @@ main()
     level thread zr_prepare_resume();
     level thread zr_watch_players();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8 only, hardened HUD/PAP/save runtime)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (save format v8, all-map route/power world adapter)");
 }
