@@ -1501,7 +1501,9 @@ zr_world_route_candidates()
         flags[flags.size] = "storage_group";
         flags[flags.size] = "power_group";
         flags[flags.size] = "roof_connector_dropoff";
-        flags[flags.size] = "rocket_group";
+        // rocket_group is the post-launch PAP access state. Restoring only
+        // this zone flag would leave the physical rocket/door inconsistent,
+        // so Ascension launch/PAP progression gets a dedicated adapter later.
         flags[flags.size] = "centrifuge";
         flags[flags.size] = "centrifuge2power";
         flags[flags.size] = "power2centrifuge";
@@ -1849,7 +1851,12 @@ zr_print_status()
 
     println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + current_round);
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
-    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume") + " preserve_roster=" + level.zr_preserve_saved_roster);
+    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") +
+        " world=" + GetDvar("zr_sv_world_adapter") +
+        " world_power=" + GetDvar("zr_sv_world_power") +
+        " world_routes=" + GetDvar("zr_sv_world_flag_count") +
+        " resume_request=" + GetDvar("zr_resume") +
+        " preserve_roster=" + level.zr_preserve_saved_roster);
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
     println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud") + " hud_scale_pct=" + GetDvar("zr_hud_scale_pct"));
     println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " special=" + GetDvar("zr_pap_special") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
