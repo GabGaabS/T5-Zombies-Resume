@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-beta.23 - 2026-08-31
+
+- Change the default simultaneous-zombie cap from 24 to 30.
+- Add a one-time migration from beta.22's untouched default 24 to 30 while preserving host-customized values.
+- Separate the spawn-loop live-zombie cap from the engine actor cap.
+- With the default 30 live zombies, call `SetAILimit(31)` to leave one actor slot available while recently killed actors are cleaned up.
+- Keep the hard GSC-side ceiling at 32.
+- Document that exceeding 32 native actors would require engine-level reverse engineering/reallocation rather than a normal GSC change.
+
 ## 0.8.0-beta.22 - 2026-08-31
 
 - Keep the beta.21 known-good rollback runtime unchanged apart from one isolated gameplay setting.
