@@ -2719,6 +2719,20 @@ zr_prepare_resume()
 
 zr_apply_zombie_ai_limit()
 {
+    tuning_version = GetDvarInt("zr_zombie_ai_tuning_version");
+
+    if (tuning_version < 1)
+    {
+        // beta.22 introduced 24 as the archived default. Move only that known
+        // default to 30; preserve any value the host already chose manually.
+        if (GetDvarInt("zr_zombie_ai_limit") == 24)
+        {
+            SetDvar("zr_zombie_ai_limit", "30");
+        }
+
+        SetDvar("zr_zombie_ai_tuning_version", "1");
+    }
+
     live_limit = GetDvarInt("zr_zombie_ai_limit");
 
     if (live_limit < 1)
@@ -2811,6 +2825,8 @@ main()
         SetDvar("zr_hud_scale_pct", "100");
     if (GetDvar("zr_zombie_ai_limit") == "")
         SetDvar("zr_zombie_ai_limit", "30");
+    if (GetDvar("zr_zombie_ai_tuning_version") == "")
+        SetDvar("zr_zombie_ai_tuning_version", "0");
 
     if (GetDvar("zr_pap_multi") == "")
         SetDvar("zr_pap_multi", "1");
