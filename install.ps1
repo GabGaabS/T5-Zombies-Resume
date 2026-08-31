@@ -42,7 +42,7 @@ $MenuTarget = Join-Path $MenuModUiDir "xboxlive_privatelobby.menu"
 $MenuListTarget = Join-Path $MenuModUiDir "mod.txt"
 $MenuDescriptionTarget = Join-Path $MenuModDir "description.txt"
 
-$Version = "0.8.0-beta.22"
+$Version = "0.8.0-beta.23"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -207,7 +207,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.22 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.23 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -316,7 +316,7 @@ Ensure-ArchivedDvar "zr_hud_round_time" "1"
 Ensure-ArchivedDvar "zr_hud_total_time" "1"
 Ensure-ArchivedDvar "zr_hud_zombies" "1"
 Ensure-ArchivedDvar "zr_hud_scale_pct" "100"
-Ensure-ArchivedDvar "zr_zombie_ai_limit" "24"
+Ensure-ArchivedDvar "zr_zombie_ai_limit" "30"
 
 # Multi-Pack-a-Punch tuning. Stock PAP is level 1; T5ZR handles level 2+.
 Ensure-ArchivedDvar "zr_pap_multi" "1"
@@ -419,7 +419,7 @@ Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
 Write-Host "[T5ZR] Save format : v8 uniquement. Les anciens formats v5/v6/v7 ne sont plus charges."
-Write-Host "[T5ZR] beta.22 ajoute un plafond configurable de zombies simultanes (24 stock, 32 max prudent)."
+Write-Host "[T5ZR] beta.23 utilise 30 zombies simultanes par defaut avec 1 slot AI moteur de marge."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
@@ -439,7 +439,7 @@ Write-Host "       PAP 8 par defaut ; la limite du code reste 10 via set zr_pap_
 Write-Host "       Reglages : zr_pap_max_level, zr_pap_cost_base, zr_pap_cost_step,"
 Write-Host "                  zr_pap_damage_percent, zr_pap_clip_percent, zr_pap_stock_percent"
 Write-Host "       Le compteur natif de clip reste bride ; T5ZR emule les balles supplementaires."
-Write-Host "       Zombies simultanes : set zr_zombie_ai_limit 32 puis map_restart (stock=24, max=32)."
+Write-Host "       Zombies simultanes : defaut=30 ; set zr_zombie_ai_limit 32 puis map_restart pour tester le plafond."
 Write-Host "       HUD : set zr_hud_scale_pct 45 puis map_restart pour le reduire davantage."
 Write-Host ""
 Write-Host "[T5ZR] Commandes de correction :"
