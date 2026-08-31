@@ -2602,8 +2602,13 @@ zr_force_clear_debris(trigger)
     }
 }
 
-zr_restore_kino_route_flag(flag_name)
+zr_restore_route_flag(flag_name)
 {
+    if (!IsDefined(flag_name) || flag_name == "")
+    {
+        return;
+    }
+
     doors = GetEntArray("zombie_door", "targetname");
 
     for (i = 0; i < doors.size; i++)
@@ -2624,51 +2629,242 @@ zr_restore_kino_route_flag(flag_name)
         }
     }
 
-    // Some route flags may not have a directly matching trigger on every map
-    // revision. Setting it still keeps the stock zone manager in sync.
+    // Custom map movers often wait directly on the route flag. Setting it
+    // covers those while the generic blocker paths above handle stock doors.
     zr_set_flag(flag_name);
 }
 
-zr_restore_kino_world()
+zr_world_power_user()
+{
+    tries = 0;
+    players = GetPlayers();
+
+    while (players.size <= 0 && tries < 200)
+    {
+        wait 0.01;
+        tries++;
+        players = GetPlayers();
+    }
+
+    if (players.size > 0)
+    {
+        return players[0];
+    }
+
+    return undefined;
+}
+
+zr_world_notify_power_fallback()
+{
+    // Common listeners used across BO1/ZM maps. Extra notifies are harmless
+    // when a map has no matching machine/listener.
+    level notify("revive_on");
+    level notify("juggernog_on");
+    level notify("sleight_on");
+    level notify("doubletap_on");
+    level notify("divetonuke_on");
+    level notify("marathon_on");
+    level notify("deadshot_on");
+    level notify("additionalprimaryweapon_on");
+    level notify("Pack_A_Punch_on");
+    level notify("electric_door");
+    clientnotify("ZPO");
+}
+
+zr_world_restore_power_trigger(trigger_name, user)
+{
+    trigger = GetEnt(trigger_name, "targetname");
+
+    if (!IsDefined(trigger))
+    {
+        return false;
+    }
+
+    trigger notify("trigger", user);
+
+    tries = 0;
+    while (!zr_flag_is_set("power_on") && tries < 250)
+    {
+        wait 0.01;
+        tries++;
+    }
+
+    return zr_flag_is_set("power_on");
+}
+
+zr_restore_saved_power()
+{
+    if (GetDvarInt("zr_sv_world_power") != 1 || zr_flag_is_set("power_on"))
+    {
+        return;
+    }
+
+    map_name = zr_current_map();
+    user = zr_world_power_user();
+    restored = false;
+
+    // Shangri-La has two water-wheel switches instead of one master trigger.
+    if (map_name == "zombie_temple")
+    {
+        left = GetEnt("power_trigger_left", "targetname");
+        right = GetEnt("power_trigger_right", "targetname");
+
+        if (IsDefined(left))
+        {
+            left notify("trigger", user);
+        }
+
+        if (IsDefined(right))
+        {
+            right notify("trigger", user);
+        }
+
+        tries = 0;
+        while (!zr_flag_is_set("power_on") && tries < 300)
+        {
+            wait 0.01;
+            tries++;
+        }
+
+        restored = zr_flag_is_set("power_on");
+    }
+    else if (map_name == "zombie_cod5_asylum")
+    {
+        restored = zr_world_restore_power_trigger("use_master_switch", user);
+    }
+    else if (map_name == "zombie_cod5_factory")
+    {
+        restored = zr_world_restore_power_trigger("use_power_switch", user);
+    }
+    else if (map_name == "zombie_theater" ||
+        map_name == "zombie_pentagon" ||
+        map_name == "zombie_cosmodrome" ||
+        map_name == "zombie_coast" ||
+        map_name == "zombie_moon")
+    {
+        restored = zr_world_restore_power_trigger("use_elec_switch", user);
+    }
+
+    if (!restored)
+    {
+        // If a stock trigger thread was not armed yet, reproduce the persistent
+        // result rather than leave a valid save without power.
+        if (map_name == "zombie_temple")
+        {
+            zr_set_flag("left_switch_pulled");
+            zr_set_flag("right_switch_pulled");
+            zr_set_flag("left_switch_done");
+            zr_set_flag("right_switch_done");
+        }
+
+        zr_set_flag("power_on");
+        zr_world_notify_power_fallback();
+        println("[T5ZR] World power restored through fallback on " + map_name + ".");
+    }
+    else
+    {
+        println("[T5ZR] World power restored through stock map trigger on " + map_name + ".");
+    }
+}
+
+zr_restore_routes_world()
+{
+    if (GetDvar("zr_sv_world_adapter") != "routes_v1")
+    {
+        return;
+    }
+
+    // Let stock blocker/zone/power threads finish their setup before replaying
+    // stable route state.
+    wait 0.90;
+
+    zr_restore_saved_power();
+
+    flag_count = GetDvarInt("zr_sv_world_flag_count");
+
+    if (flag_count < 0)
+    {
+        flag_count = 0;
+    }
+
+    if (flag_count > 32)
+    {
+        flag_count = 32;
+    }
+
+    for (i = 0; i < flag_count; i++)
+    {
+        flag_name = GetDvar(zr_world_flag_key(i));
+
+        if (flag_name != "")
+        {
+            zr_restore_route_flag(flag_name);
+        }
+    }
+
+    if (zr_current_map() == "zombie_theater")
+    {
+        if (GetDvarInt("zr_sv_kino_curtains_done") == 1)
+        {
+            zr_set_flag("curtains_done");
+        }
+
+        if (GetDvarInt("zr_sv_kino_teleporter_linked") == 1)
+        {
+            zr_set_flag("core_linked");
+            zr_set_flag("teleporter_linked");
+
+            if (IsDefined(level.link_cable_on) && IsDefined(level.link_cable_off))
+            {
+                level.link_cable_off Hide();
+                level.link_cable_on Show();
+            }
+        }
+    }
+
+    println("[T5ZR] World restored: map=" + zr_current_map() +
+        " power=" + GetDvar("zr_sv_world_power") +
+        " open_routes=" + flag_count + ".");
+}
+
+zr_restore_kino_world_v1()
 {
     if (GetDvar("zr_sv_world_adapter") != "kino_v1")
     {
         return;
     }
 
-    // _zombiemode::main initializes blockers/perks before round play. Give its
-    // threaded blocker setup a short head start so door.doors is classified.
-    wait 0.75;
+    // Compatibility only for an already-existing beta.19 v8 Kino snapshot.
+    wait 0.90;
 
     if (GetDvarInt("zr_sv_kino_power") == 1)
     {
-        power_trigger = GetEnt("use_elec_switch", "targetname");
+        user = zr_world_power_user();
+        restored = zr_world_restore_power_trigger("use_elec_switch", user);
 
-        if (IsDefined(power_trigger))
+        if (!restored)
         {
-            power_trigger Delete();
+            zr_set_flag("power_on");
+            zr_world_notify_power_fallback();
         }
-
-        zr_set_flag("power_on");
-        Objective_State(8, "done");
     }
 
     if (GetDvarInt("zr_sv_kino_magic_box_foyer1") == 1)
-        zr_restore_kino_route_flag("magic_box_foyer1");
+        zr_restore_route_flag("magic_box_foyer1");
     if (GetDvarInt("zr_sv_kino_magic_box_crematorium1") == 1)
-        zr_restore_kino_route_flag("magic_box_crematorium1");
+        zr_restore_route_flag("magic_box_crematorium1");
     if (GetDvarInt("zr_sv_kino_vip_to_dining") == 1)
-        zr_restore_kino_route_flag("vip_to_dining");
+        zr_restore_route_flag("vip_to_dining");
     if (GetDvarInt("zr_sv_kino_magic_box_alleyway1") == 1)
-        zr_restore_kino_route_flag("magic_box_alleyway1");
+        zr_restore_route_flag("magic_box_alleyway1");
     if (GetDvarInt("zr_sv_kino_dining_to_dressing") == 1)
-        zr_restore_kino_route_flag("dining_to_dressing");
+        zr_restore_route_flag("dining_to_dressing");
     if (GetDvarInt("zr_sv_kino_magic_box_dressing1") == 1)
-        zr_restore_kino_route_flag("magic_box_dressing1");
+        zr_restore_route_flag("magic_box_dressing1");
     if (GetDvarInt("zr_sv_kino_magic_box_west_balcony2") == 1)
-        zr_restore_kino_route_flag("magic_box_west_balcony2");
+        zr_restore_route_flag("magic_box_west_balcony2");
     if (GetDvarInt("zr_sv_kino_magic_box_west_balcony1") == 1)
-        zr_restore_kino_route_flag("magic_box_west_balcony1");
+        zr_restore_route_flag("magic_box_west_balcony1");
 
     if (GetDvarInt("zr_sv_kino_curtains_done") == 1)
     {
@@ -2687,14 +2883,20 @@ zr_restore_kino_world()
         }
     }
 
-    println("[T5ZR] Kino world restored: power=" + GetDvar("zr_sv_kino_power") + ", teleporter_linked=" + GetDvar("zr_sv_kino_teleporter_linked") + ".");
+    println("[T5ZR] Legacy Kino world adapter restored once; next autosave writes routes_v1.");
 }
 
 zr_restore_world()
 {
-    if (zr_current_map() == "zombie_theater")
+    adapter = GetDvar("zr_sv_world_adapter");
+
+    if (adapter == "routes_v1")
     {
-        zr_restore_kino_world();
+        zr_restore_routes_world();
+    }
+    else if (adapter == "kino_v1" && zr_current_map() == "zombie_theater")
+    {
+        zr_restore_kino_world_v1();
     }
 }
 
