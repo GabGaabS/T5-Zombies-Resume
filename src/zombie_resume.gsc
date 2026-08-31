@@ -2710,8 +2710,12 @@ zr_restore_saved_power()
     user = zr_world_power_user();
     restored = false;
 
+    if (!IsDefined(user))
+    {
+        println("[T5ZR] No connected player available for stock power trigger; using fallback.");
+    }
     // Shangri-La has two water-wheel switches instead of one master trigger.
-    if (map_name == "zombie_temple")
+    else if (map_name == "zombie_temple")
     {
         left = GetEnt("power_trigger_left", "targetname");
         right = GetEnt("power_trigger_right", "targetname");
