@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.22-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.23-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.22` keeps the beta.21 known-good runtime and adds one isolated gameplay option: the simultaneous zombie AI cap is configurable with `zr_zombie_ai_limit`. BO1 stock uses 24; T5ZR clamps the setting to 32 to stay within the practical T5 actor/network ceiling. This does not change the total number of zombies in a round.
+`0.8.0-beta.23` changes the simultaneous-zombie default to 30 while keeping the beta.21 known-good runtime baseline. T5ZR separates the live spawn-loop cap from the engine actor cap so the engine keeps one cleanup/spawn slot of headroom. The previous beta.22 default value 24 migrates once to 30; custom values are preserved.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.22 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.23 loaded
 ```
 
 ### Optional Resume Game button
@@ -214,11 +214,16 @@ set zr_zombie_ai_limit 32
 map_restart
 ```
 
-- default: `24`;
+- default: `30`;
 - allowed runtime range: `1-32`;
-- recommended high setting: `32`.
+- recommended setting: `30`;
+- `32` remains available for testing, but has no actor headroom.
 
-T5ZR updates both `level.zombie_ai_limit` and the engine `SetAILimit()` value after stock Zombies initializes them. Values above 32 are clamped because the original scripts explicitly describe the AI cap as network-sensitive and T5 community mods treat 32 as the practical ceiling.
+T5ZR applies the requested value to `level.zombie_ai_limit`, which gates the normal spawn loop, and gives the engine actor pool one extra slot when possible through `SetAILimit()`. With the default `30`, the engine limit is `31`.
+
+The stock BO1 script explicitly says its AI cap is network-sensitive. BO1-Reimagined also separates the spawn-loop limit from `SetAILimit()` and uses an enlarged engine actor pool to avoid stalls while recently killed actors are being cleaned up.
+
+Going **above 32 native actors** is not a normal GSC tweak. Public Plutonium staff guidance for the related CoD Zombies actor system describes 32 as an engine limit that would require reverse engineering, memory reallocation and removal of many engine checks. T5 itself also uses the campaign/SP actor system, so T5ZR intentionally stays native-GSC-only instead of patching process memory or requiring a custom client.
 
 This affects how many enemies can be active simultaneously, **not** how many zombies the round contains in total.
 
