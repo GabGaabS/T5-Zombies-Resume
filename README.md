@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.21-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.22-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.21` is an emergency rollback to the beta.19 runtime after beta.20 introduced a server-script compile failure in the experimental all-map world adapter. The validated HUD, virtual PAP reserve, v8 save/runtime hardening and Kino world adapter remain active. Other-map world adapters will be reintroduced one map at a time.
+`0.8.0-beta.22` keeps the beta.21 known-good runtime and adds one isolated gameplay option: the simultaneous zombie AI cap is configurable with `zr_zombie_ai_limit`. BO1 stock uses 24; T5ZR clamps the setting to 32 to stay within the practical T5 actor/network ceiling. This does not change the total number of zombies in a round.
 
 The save layer already covers:
 
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.21 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.22 loaded
 ```
 
 ### Optional Resume Game button
@@ -204,6 +204,23 @@ set zr_status 1
 set zr_resume 1
 map_restart
 ```
+
+## Simultaneous zombie limit
+
+Stock BO1 Zombies uses `level.zombie_ai_limit = 24` and pauses the normal spawn loop while the live enemy count is at that limit. T5ZR can raise this without changing the round-size formula:
+
+```text
+set zr_zombie_ai_limit 32
+map_restart
+```
+
+- default: `24`;
+- allowed runtime range: `1-32`;
+- recommended high setting: `32`.
+
+T5ZR updates both `level.zombie_ai_limit` and the engine `SetAILimit()` value after stock Zombies initializes them. Values above 32 are clamped because the original scripts explicitly describe the AI cap as network-sensitive and T5 community mods treat 32 as the practical ceiling.
+
+This affects how many enemies can be active simultaneously, **not** how many zombies the round contains in total.
 
 ## HUD
 
