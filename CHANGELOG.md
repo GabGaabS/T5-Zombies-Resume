@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-beta.22 - 2026-08-31
+
+- Keep the beta.21 known-good rollback runtime unchanged apart from one isolated gameplay setting.
+- Add archived `zr_zombie_ai_limit` for the maximum number of simultaneous zombie/AI actors allowed by the normal spawn loop.
+- Default to BO1 stock `24`; clamp the runtime setting to `1-32`.
+- Apply the value to both `level.zombie_ai_limit` and the engine `SetAILimit()` after stock Zombies initializes its AI state.
+- Do not change the total zombies-per-round formula; only the number that may be alive simultaneously changes.
+- Expose the configured AI limit through `zr_status`.
+
 ## 0.8.0-beta.21 - 2026-08-31
 
 - Emergency rollback of the beta.20 all-map world adapter after r5346 reported a server-script compile failure: `unknown function: zr_world_notify_power_fallback`.
