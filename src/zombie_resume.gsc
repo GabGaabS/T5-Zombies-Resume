@@ -1213,27 +1213,31 @@ zr_world_flag_key(index)
 
 zr_clear_world_save()
 {
+    old_count = GetDvarInt("zr_sv_world_flag_count");
+
+    if (old_count < 0)
+    {
+        old_count = 0;
+    }
+
+    if (old_count > 32)
+    {
+        old_count = 32;
+    }
+
     zr_store("zr_sv_world_adapter", "none");
     zr_store("zr_sv_world_power", "0");
     zr_store("zr_sv_world_flag_count", "0");
 
-    for (i = 0; i < 32; i++)
+    // Clear only slots that were previously live. Stale values beyond count are
+    // never read, avoiding 32 needless archived writes on every round boundary.
+    for (i = 0; i < old_count; i++)
     {
         zr_store(zr_world_flag_key(i), "");
     }
 
-    // Tiny fallback for one existing beta.19 Kino v8 snapshot.
-    zr_store("zr_sv_kino_power", "0");
-    zr_store("zr_sv_kino_magic_box_foyer1", "0");
-    zr_store("zr_sv_kino_magic_box_crematorium1", "0");
-    zr_store("zr_sv_kino_vip_to_dining", "0");
-    zr_store("zr_sv_kino_magic_box_alleyway1", "0");
-    zr_store("zr_sv_kino_dining_to_dressing", "0");
-    zr_store("zr_sv_kino_magic_box_dressing1", "0");
-    zr_store("zr_sv_kino_magic_box_west_balcony2", "0");
-    zr_store("zr_sv_kino_magic_box_west_balcony1", "0");
-    zr_store("zr_sv_kino_curtains_done", "0");
-    zr_store("zr_sv_kino_teleporter_linked", "0");
+    // beta.19 Kino fields are intentionally left untouched. They are read only
+    // when the adapter is explicitly kino_v1, and routes_v1 ignores them.
 }
 
 zr_clear_round_scheduler_save()
@@ -1611,6 +1615,40 @@ zr_world_route_candidates()
     }
 
     return flags;
+}
+
+zr_world_route_is_allowed(flag_name)
+{
+    if (!IsDefined(flag_name) || flag_name == "")
+    {
+        return false;
+    }
+
+    flags = zr_world_route_candidates();
+
+    for (i = 0; i < flags.size; i++)
+    {
+        if (flags[i] == flag_name)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+zr_world_map_has_power()
+{
+    map_name = zr_current_map();
+
+    return map_name == "zombie_theater" ||
+        map_name == "zombie_pentagon" ||
+        map_name == "zombie_cosmodrome" ||
+        map_name == "zombie_coast" ||
+        map_name == "zombie_temple" ||
+        map_name == "zombie_moon" ||
+        map_name == "zombie_cod5_asylum" ||
+        map_name == "zombie_cod5_factory";
 }
 
 zr_save_world()
@@ -2706,6 +2744,12 @@ zr_restore_saved_power()
         return;
     }
 
+    if (!zr_world_map_has_power())
+    {
+        println("[T5ZR] Ignoring saved power state on map without a supported power system: " + zr_current_map());
+        return;
+    }
+
     map_name = zr_current_map();
     user = zr_world_power_user();
     restored = false;
@@ -2807,9 +2851,13 @@ zr_restore_routes_world()
     {
         flag_name = GetDvar(zr_world_flag_key(i));
 
-        if (flag_name != "")
+        if (zr_world_route_is_allowed(flag_name))
         {
             zr_restore_route_flag(flag_name);
+        }
+        else if (flag_name != "")
+        {
+            println("[T5ZR] Ignoring unsupported saved world route flag for " + zr_current_map() + ": " + flag_name);
         }
     }
 
