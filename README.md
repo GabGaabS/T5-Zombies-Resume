@@ -2,7 +2,7 @@
 
 Host-only save/resume for **Call of Duty: Black Ops Zombies** on **Plutonium T5**.
 
-![Version](https://img.shields.io/badge/version-0.8.0--beta.20-blue)
+![Version](https://img.shields.io/badge/version-0.8.0--beta.21-blue)
 ![Status](https://img.shields.io/badge/status-public%20beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Plutonium%20T5-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@ T5ZR lets the host stop a private Zombies session at a round boundary, close the
 
 ## Current status
 
-`0.8.0-beta.20` adds a generic world adapter for all stock BO1 Zombies maps handled by T5ZR. It persists/restores the power state where the map has one and the permanent zone/door/debris route flags used by each map's stock zone manager. Kino keeps its curtain and fully-linked teleporter state. Complex non-route mechanics such as Ascension's rocket/lander progression, Der Riese teleporter linking and Moon excavator breaches are deliberately not faked by the generic adapter; they will get dedicated adapters.
+`0.8.0-beta.21` is an emergency rollback to the beta.19 runtime after beta.20 introduced a server-script compile failure in the experimental all-map world adapter. The validated HUD, virtual PAP reserve, v8 save/runtime hardening and Kino world adapter remain active. Other-map world adapters will be reintroduced one map at a time.
 
 The save layer already covers:
 
@@ -28,7 +28,7 @@ The save layer already covers:
 - strict per-player matching through `GetGuid()`;
 - persistent 4-slot coop roster: absent players keep their last saved state; new players only take free slots;
 - hellhound scheduler state;
-- power and permanent opened routes across Kino, Five, Ascension, Call of the Dead, Shangri-La, Moon, Nacht, Verrückt, Shi No Numa and Der Riese;
+- Kino power and permanent opened routes;
 - Kino stage curtain and fully-linked teleporter state.
 
 ## Installation from scratch
@@ -117,7 +117,7 @@ Expected runtime path:
 After installation, start Plutonium, open **Black Ops → Zombies**, create a private lobby and launch a match. The console should contain a line similar to:
 
 ```text
-[T5ZR] T5 Zombies Resume v0.8.0-beta.20 loaded
+[T5ZR] T5 Zombies Resume v0.8.0-beta.21 loaded
 ```
 
 ### Optional Resume Game button
@@ -379,18 +379,6 @@ Formats v5, v6 and v7 are intentionally no longer accepted. This removes stale f
 
 If an old save is still present, T5ZR refuses to resume it without mutating it. Start a fresh match and let the next round-boundary autosave create a current v8 snapshot.
 
-### World adapter
-
-beta.20 writes `zr_sv_world_adapter=routes_v1`. The adapter stores:
-
-- whether the map's main power state is on;
-- up to 32 permanent route flags selected from the stock zone definitions for the current map;
-- Kino's stable curtain and fully-linked teleporter flags.
-
-On resume, T5ZR first lets stock map initialization settle, then replays the stock power trigger when possible and restores the saved routes through the stock door/debris bookkeeping. If a route is driven by a custom mover that waits directly on its zone flag, setting the saved flag wakes the stock map thread.
-
-A beta.19 Kino v8 snapshot using `kino_v1` is accepted once as a narrow compatibility path; the next autosave rewrites it as `routes_v1`.
-
 ## Install paths
 
 Runtime:
@@ -414,24 +402,17 @@ Persistent save dvars:
 
 ## Known limitations
 
-Intentionally outside the save scope:
+Not currently reconstructed:
 
 - Mystery Box location/history;
+- active teleporter cooldown;
+- temporary traps and powerups;
+- living zombies / exact mid-round positions;
 - Easter Egg and sidequest progress;
 - RNG state;
-- active teleporter cooldowns;
-- temporary traps and powerups;
-- living zombies / exact mid-round positions.
+- full map-specific world state outside implemented adapters.
 
-Still pending dedicated map adapters because a simple flag replay would be unsafe or visually inconsistent:
-
-- Ascension lander usage / rocket launch / permanent PAP-access result;
-- Der Riese partial/full teleporter-link state;
-- Shi No Numa zipline activation state;
-- Moon excavator breach/blocker state;
-- other map-specific moving systems that are not ordinary permanent door/debris routes.
-
-The generic route/power adapter, multi-PAP ammo scaling, verified weapon restoration, HUD and menu integration still need real r5346 validation across every supported map before being called stable.
+The multi-PAP ammo scaling, verified weapon restoration, revised HUD and new mod-based menu integration need continued real r5346 validation before being called stable.
 
 ## Plutonium r5346
 
