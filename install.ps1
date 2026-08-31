@@ -42,7 +42,7 @@ $MenuTarget = Join-Path $MenuModUiDir "xboxlive_privatelobby.menu"
 $MenuListTarget = Join-Path $MenuModUiDir "mod.txt"
 $MenuDescriptionTarget = Join-Path $MenuModDir "description.txt"
 
-$Version = "0.8.0-beta.19"
+$Version = "0.8.0-beta.20"
 $SaveFormat = "8"
 
 $OldScriptTargets = @(
@@ -207,7 +207,7 @@ function Build-T5ZRMenuOverride {
     }
     $menu = $menu.Replace($minPlayersBlock, $resumeButton)
 
-    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.19 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
+    return "// T5ZR_MENU_OVERRIDE v0.8.0-beta.20 - generated from Plutonium client-raw-assets $MenuUpstreamCommit`n" + $menu
 }
 
 if ($InstallMenu) {
@@ -309,6 +309,12 @@ Ensure-ArchivedDvar "zr_sv_reason" ""
 Ensure-ArchivedDvar "zr_sv_player_count" "0"
 Ensure-ArchivedDvar "zr_sv_total_time_seconds" "0"
 Ensure-ArchivedDvar "zr_sv_world_adapter" "none"
+Ensure-ArchivedDvar "zr_sv_world_power" "0"
+Ensure-ArchivedDvar "zr_sv_world_flag_count" "0"
+
+for ($wf = 0; $wf -lt 32; $wf++) {
+    Ensure-ArchivedDvar "zr_sv_world_flag${wf}" ""
+}
 
 # HUD preferences. These are user-facing settings, not save-state fields.
 Ensure-ArchivedDvar "zr_hud" "1"
@@ -418,7 +424,7 @@ Write-Host "[T5ZR] GSC : $ScriptTarget"
 Write-Host "[T5ZR] Persistance : $ConfigPath"
 Write-Host ""
 Write-Host "[T5ZR] Save format : v8 uniquement. Les anciens formats v5/v6/v7 ne sont plus charges."
-Write-Host "[T5ZR] v8 ajoute les niveaux multi-Pack-a-Punch par arme."
+Write-Host "[T5ZR] v8 stocke les joueurs/PAP et l'adapter monde routes_v1 (courant + routes permanentes)."
 Write-Host ""
 Write-Host "[T5ZR] Commandes console :"
 Write-Host "       set zr_status 1       -> etat/save"
