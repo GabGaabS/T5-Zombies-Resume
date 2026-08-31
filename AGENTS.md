@@ -8,7 +8,7 @@ Reliable host-side round-boundary save/resume for BO1 Zombies on Plutonium T5.
 
 No Steam/VAC bypass, anti-cheat evasion, process injection, memory patching or stealth behavior.
 
-## Current architecture (0.8.0-beta.20)
+## Current architecture (0.8.0-beta.21)
 
 - Runtime: `src/zombie_resume.gsc`.
 - Save format: **v8 only**.
@@ -18,9 +18,7 @@ No Steam/VAC bypass, anti-cheat evasion, process injection, memory patching or s
 - Player state: score/score total, scoreboard fields and stat mirrors, primaries, effective PAP ammo, selected primary, perks, Bowie/melee and tactical grenades.
 - Per-weapon multi-PAP registry with virtual magazine + virtual reserve.
 - Hellhound scheduler state is persisted/restored.
-- Generic `routes_v1` world adapter persists power plus permanent stock zone/door/debris route flags on all supported maps.
-- Kino additionally preserves curtain and fully-linked teleporter state.
-- Complex moving systems (Ascension rocket/landers, Der Riese teleporter links, Shi No Numa zipline activation, Moon excavator breaches) require dedicated adapters and must not be approximated with route flags.
+- Kino adapter handles stable power/routes/curtain/linked-teleporter state.
 - Optional frontend integration: generated `mods/t5zr_resume_menu` mod with `ui/mod.txt`.
 - UI install/remove: `install.ps1 -InstallMenu` / `-RemoveMenu`.
 - The full Plutonium lobby raw asset must not be committed; fetch the pinned public upstream asset and patch it locally.
@@ -33,7 +31,7 @@ No Steam/VAC bypass, anti-cheat evasion, process injection, memory patching or s
 - multi-PAP per-weapon pricing;
 - virtual magazine behavior;
 - stock-small configurable HUD on r5346;
-- all-map permanent route/power adapter (beta.20 needs broad real-game validation);
+- Kino power and opened routes.
 
 ## Rules
 
@@ -52,3 +50,7 @@ No Steam/VAC bypass, anti-cheat evasion, process injection, memory patching or s
 13. Keep console controls as fallback.
 14. Do not mark features stable without real in-game testing.
 15. Keep live HUD updates configstring-safe.
+
+## Current rollback note
+
+beta.20 all-map world-state code was rolled back after an r5346 compile failure. Reintroduce map adapters incrementally, one map per testable change, starting from the beta.19/beta.21 known-good runtime.
