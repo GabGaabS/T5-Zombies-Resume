@@ -8,7 +8,7 @@ Reliable host-side round-boundary save/resume for BO1 Zombies on Plutonium T5.
 
 No Steam/VAC bypass, anti-cheat evasion, process injection, memory patching or stealth behavior.
 
-## Current architecture (0.8.0-beta.22)
+## Current architecture (0.8.0-beta.23)
 
 - Runtime: `src/zombie_resume.gsc`.
 - Save format: **v8 only**.
@@ -17,7 +17,7 @@ No Steam/VAC bypass, anti-cheat evasion, process injection, memory patching or s
 - Persistent four-slot coop roster; absent players keep their saved slots.
 - Player state: score/score total, scoreboard fields and stat mirrors, primaries, effective PAP ammo, selected primary, perks, Bowie/melee and tactical grenades.
 - Per-weapon multi-PAP registry with virtual magazine + virtual reserve.
-- Optional simultaneous AI cap via `zr_zombie_ai_limit` (stock 24, runtime clamp 1-32).
+- Optional simultaneous AI cap via `zr_zombie_ai_limit` (default 30, runtime clamp 1-32) with one engine actor slot of headroom when possible.
 - Hellhound scheduler state is persisted/restored.
 - Kino adapter handles stable power/routes/curtain/linked-teleporter state.
 - Optional frontend integration: generated `mods/t5zr_resume_menu` mod with `ui/mod.txt`.
@@ -55,3 +55,5 @@ No Steam/VAC bypass, anti-cheat evasion, process injection, memory patching or s
 ## Current rollback note
 
 beta.20 all-map world-state code was rolled back after an r5346 compile failure. Reintroduce map adapters incrementally, one map per testable change, starting from the beta.19/beta.21 known-good runtime.
+
+16. Do not attempt to exceed the native actor ceiling through DLL injection or process-memory patching; this project remains native-GSC-only.
