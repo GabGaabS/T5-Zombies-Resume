@@ -13,6 +13,8 @@
 - Deliberately exclude Ascension's `rocket_group` from generic route restore because PAP/rocket geometry needs a dedicated adapter.
 - Register generic world power/count/route dvars in the installer.
 - Extend `zr_status` with world power and saved route count.
+- Validate every persisted route name against the current map before replaying it.
+- Clear only previously used indexed route slots instead of rewriting all 32 slots empty at every autosave.
 - Leave Mystery Box, Easter Eggs, RNG and temporary map events outside the save scope by design.
 
 ## 0.8.0-beta.19 - 2026-08-30
