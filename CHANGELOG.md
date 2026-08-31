@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0-beta.20 - 2026-08-31
+
+- Add generic `routes_v1` world-state persistence for all stock BO1 Zombies maps exposed by the T5ZR menu.
+- Persist the main `power_on` state when the current map has one.
+- Persist up to 32 set permanent route flags selected from each map's stock zone-manager adjacency definitions.
+- Restore ordinary routes through stock door/debris bookkeeping and wake custom map movers by replaying the saved zone flag.
+- Replay the stock map power trigger where possible; use a guarded common-power fallback only if the stock trigger path does not complete.
+- Handle Shangri-La's dual water-wheel power switches separately from one-switch maps.
+- Keep Kino curtain and fully-linked teleporter state on top of the generic route adapter.
+- Add a narrow one-time reader for an existing beta.19 Kino `kino_v1` v8 snapshot; the next autosave rewrites it as `routes_v1`.
+- Deliberately exclude Ascension's `rocket_group` from generic route restore because PAP/rocket geometry needs a dedicated adapter.
+- Register generic world power/count/route dvars in the installer.
+- Extend `zr_status` with world power and saved route count.
+- Leave Mystery Box, Easter Eggs, RNG and temporary map events outside the save scope by design.
+
 ## 0.8.0-beta.19 - 2026-08-30
 
 - Remove legacy v5/v6/v7 save readers; the runtime now accepts current save format v8 only.
