@@ -2,7 +2,7 @@
 
 T5 Zombies Resume writes one host-side **round-boundary** snapshot in archived `zr_sv_*` dvars. A save becomes valid only after session, scheduler, world and player fields have been written.
 
-The current runtime reads and writes **v8 only**. Legacy v5/v6/v7 readers were removed in 0.8.0-beta.19.
+The current runtime reads and writes **v8 only**. Legacy v5/v6/v7 readers were removed in 0.8.0-beta.19. beta.21 keeps the same v8 schema and the known-good Kino world adapter after rolling back the experimental beta.20 all-map adapter.
 
 ## Session
 
@@ -15,11 +15,6 @@ zr_sv_round             # next round to play
 zr_sv_reason
 zr_sv_player_count
 zr_sv_world_adapter
-zr_sv_world_power
-zr_sv_world_flag_count
-zr_sv_world_flag0
-...
-zr_sv_world_flag31
 zr_sv_total_time_seconds
 ```
 
@@ -113,39 +108,23 @@ Each primary stores `pap_level`:
 
 Restored values are clamped to the current runtime maximum before virtual ammo/damage state is rebuilt.
 
-## World adapter
+## Kino world adapter
 
-beta.20 uses the generic adapter `routes_v1` on all supported stock maps.
-
-```text
-zr_sv_world_power
-zr_sv_world_flag_count
-zr_sv_world_flag0
-...
-zr_sv_world_flag31
-```
-
-`zr_sv_world_power` records the main map power state when a `power_on` flag exists.
-
-The indexed world flags store only **set permanent route flags** selected from the stock zone-manager definitions for the current map. These correspond to opened doors/debris or persistent zone transitions, not transient timers.
-
-On restore, T5ZR:
-
-1. waits for stock blocker/zone initialization;
-2. replays the map's stock power switch trigger where possible;
-3. falls back to setting power plus common stock power notifications only if that trigger path did not complete;
-4. restores each saved route through stock door/debris bookkeeping and the saved zone flag.
-
-Kino additionally keeps:
+When `zr_sv_world_adapter == "kino_v1"`, T5ZR restores the stable Kino state it currently models:
 
 ```text
+zr_sv_kino_power
+zr_sv_kino_magic_box_foyer1
+zr_sv_kino_magic_box_crematorium1
+zr_sv_kino_vip_to_dining
+zr_sv_kino_magic_box_alleyway1
+zr_sv_kino_dining_to_dressing
+zr_sv_kino_magic_box_dressing1
+zr_sv_kino_magic_box_west_balcony2
+zr_sv_kino_magic_box_west_balcony1
 zr_sv_kino_curtains_done
 zr_sv_kino_teleporter_linked
 ```
-
-A beta.19 v8 Kino snapshot with `zr_sv_world_adapter == "kino_v1"` has a narrow one-time reader so it can be resumed and rewritten as `routes_v1` on the next autosave. This does not reintroduce the removed v5/v6/v7 save readers.
-
-Complex moving systems are not encoded as generic routes. Ascension rocket/lander progression, Der Riese teleporter links, Shi No Numa zipline activation and Moon excavator breach state require dedicated adapters.
 
 ## Persistence
 
@@ -180,4 +159,4 @@ Old v5/v6/v7 snapshots are left untouched but are no longer loaded.
 - living zombies / mid-round positions;
 - Easter Egg / sidequest progress;
 - RNG state;
-- dedicated complex map systems not yet modeled (Ascension rocket/landers, Der Riese teleporter links, Shi No Numa zipline activation, Moon excavator breaches).
+- unsupported map-specific world state.
