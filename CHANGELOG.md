@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-beta.21 - 2026-08-31
+
+- Emergency rollback of the beta.20 all-map world adapter after r5346 reported a server-script compile failure: `unknown function: zr_world_notify_power_fallback`.
+- Restore the beta.19 known-good GSC runtime and installer baseline.
+- Keep save format v8 unchanged.
+- Keep the validated stock-small HUD, virtual PAP reserve, repair commands, roster hardening and Kino world adapter.
+- Keep the installer-side `description.txt` fix for the optional menu mod.
+- Reintroduce non-Kino world adapters incrementally, one map at a time, instead of as one large cross-map change.
+
 ## 0.8.0-beta.20 - 2026-08-31
 
 - Add generic `routes_v1` world-state persistence for all stock BO1 Zombies maps exposed by the T5ZR menu.
