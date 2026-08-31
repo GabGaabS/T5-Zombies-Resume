@@ -317,6 +317,7 @@ Ensure-ArchivedDvar "zr_hud_total_time" "1"
 Ensure-ArchivedDvar "zr_hud_zombies" "1"
 Ensure-ArchivedDvar "zr_hud_scale_pct" "100"
 Ensure-ArchivedDvar "zr_zombie_ai_limit" "30"
+Ensure-ArchivedDvar "zr_zombie_ai_tuning_version" "0"
 
 # Multi-Pack-a-Punch tuning. Stock PAP is level 1; T5ZR handles level 2+.
 Ensure-ArchivedDvar "zr_pap_multi" "1"
