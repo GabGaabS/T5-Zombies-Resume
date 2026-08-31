@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.21 / save format v8
+// v0.8.0-beta.22 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -1673,7 +1673,11 @@ zr_print_status()
 
     println("[T5ZR] version=" + level.zr_mod_version + " map=" + zr_current_map() + " round=" + current_round);
     println("[T5ZR] saved_valid=" + GetDvar("zr_sv_valid") + " format=" + GetDvar("zr_sv_format") + " saved_map=" + GetDvar("zr_sv_map") + " saved_round=" + GetDvar("zr_sv_round"));
-    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") + " world=" + GetDvar("zr_sv_world_adapter") + " resume_request=" + GetDvar("zr_resume") + " preserve_roster=" + level.zr_preserve_saved_roster);
+    println("[T5ZR] saved_players=" + GetDvar("zr_sv_player_count") +
+        " world=" + GetDvar("zr_sv_world_adapter") +
+        " zombie_ai_limit=" + GetDvar("zr_zombie_ai_limit") +
+        " resume_request=" + GetDvar("zr_resume") +
+        " preserve_roster=" + level.zr_preserve_saved_roster);
     println("[T5ZR] dogs_enabled=" + GetDvar("zr_sv_dog_rounds_enabled") + " dog_active=" + GetDvar("zr_sv_dog_round_active") + " dog_count=" + GetDvar("zr_sv_dog_round_count") + " next_dog_round=" + GetDvar("zr_sv_next_dog_round"));
     println("[T5ZR] total_time=" + zr_format_time(zr_total_elapsed_seconds()) + " hud=" + GetDvar("zr_hud") + " hud_scale_pct=" + GetDvar("zr_hud_scale_pct"));
     println("[T5ZR] multi_pap=" + GetDvar("zr_pap_multi") + " special=" + GetDvar("zr_pap_special") + " max=" + GetDvar("zr_pap_max_level") + " dmg_pct=" + GetDvar("zr_pap_damage_percent") + " clip_pct=" + GetDvar("zr_pap_clip_percent") + " stock_pct=" + GetDvar("zr_pap_stock_percent"));
@@ -2713,9 +2717,47 @@ zr_prepare_resume()
     level.zr_suppress_autosave = false;
 }
 
+zr_apply_zombie_ai_limit()
+{
+    limit = GetDvarInt("zr_zombie_ai_limit");
+
+    if (limit < 1)
+    {
+        limit = 1;
+    }
+
+    // BO1 stock uses 24 and explicitly notes the cap is network-sensitive.
+    // 32 is the practical upper bound used by T5/Plutonium zombie mods; do
+    // not push beyond it without engine-level actor/network changes.
+    if (limit > 32)
+    {
+        limit = 32;
+    }
+
+    SetDvar("zr_zombie_ai_limit", "" + limit);
+
+    tries = 0;
+    while (!IsDefined(level.zombie_ai_limit) && tries < 500)
+    {
+        wait 0.01;
+        tries++;
+    }
+
+    if (!IsDefined(level.zombie_ai_limit))
+    {
+        println("[T5ZR] WARNING: zombie AI limit was not initialized by stock Zombies.");
+        return;
+    }
+
+    level.zombie_ai_limit = limit;
+    SetAILimit(limit);
+
+    println("[T5ZR] Zombie simultaneous AI limit set to " + limit + " (stock=24, max=32).");
+}
+
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.21";
+    level.zr_mod_version = "0.8.0-beta.22";
     level.zr_pending_resume = false;
     level.zr_resume_bootstrap_ready = false;
     level.zr_suppress_autosave = false;
@@ -2758,6 +2800,8 @@ main()
         SetDvar("zr_hud_zombies", "1");
     if (GetDvar("zr_hud_scale_pct") == "")
         SetDvar("zr_hud_scale_pct", "100");
+    if (GetDvar("zr_zombie_ai_limit") == "")
+        SetDvar("zr_zombie_ai_limit", "24");
 
     if (GetDvar("zr_pap_multi") == "")
         SetDvar("zr_pap_multi", "1");
@@ -2778,10 +2822,11 @@ main()
 
     zr_init_multi_pap();
 
+    level thread zr_apply_zombie_ai_limit();
     level thread zr_watch_round_number();
     level thread zr_watch_controls();
     level thread zr_prepare_resume();
     level thread zr_watch_players();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (beta.19 known-good runtime; beta.20 world adapter rolled back)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (stable rollback runtime + configurable zombie AI limit)");
 }
