@@ -2,7 +2,7 @@
 // Host-only save/resume for Plutonium T5 / BO1 Zombies.
 // Native GSC only: no external DLL.
 //
-// v0.8.0-beta.22 / save format v8
+// v0.8.0-beta.23 / save format v8
 // - strict player matching by engine GetGuid()
 // - round, points, primary weapons, ammo and selected weapon
 // - Zombies perks restored through stock _zombiemode_perks::give_perk
@@ -2719,22 +2719,27 @@ zr_prepare_resume()
 
 zr_apply_zombie_ai_limit()
 {
-    limit = GetDvarInt("zr_zombie_ai_limit");
+    live_limit = GetDvarInt("zr_zombie_ai_limit");
 
-    if (limit < 1)
+    if (live_limit < 1)
     {
-        limit = 1;
+        live_limit = 1;
     }
 
-    // BO1 stock uses 24 and explicitly notes the cap is network-sensitive.
-    // 32 is the practical upper bound used by T5/Plutonium zombie mods; do
-    // not push beyond it without engine-level actor/network changes.
-    if (limit > 32)
+    // The BO1 actor pool is network-sensitive. Keep 32 as the hard script-side
+    // ceiling, but give the engine one spare actor slot whenever possible.
+    if (live_limit > 32)
     {
-        limit = 32;
+        live_limit = 32;
     }
 
-    SetDvar("zr_zombie_ai_limit", "" + limit);
+    engine_limit = live_limit + 1;
+    if (engine_limit > 32)
+    {
+        engine_limit = 32;
+    }
+
+    SetDvar("zr_zombie_ai_limit", "" + live_limit);
 
     tries = 0;
     while (!IsDefined(level.zombie_ai_limit) && tries < 500)
@@ -2749,15 +2754,19 @@ zr_apply_zombie_ai_limit()
         return;
     }
 
-    level.zombie_ai_limit = limit;
-    SetAILimit(limit);
+    // level.zombie_ai_limit gates the spawn loop. SetAILimit controls the
+    // engine actor pool. BO1-Reimagined uses this same separation to leave
+    // room for a new actor while recently killed zombies are being cleaned up.
+    level.zombie_ai_limit = live_limit;
+    SetAILimit(engine_limit);
 
-    println("[T5ZR] Zombie simultaneous AI limit set to " + limit + " (stock=24, max=32).");
+    println("[T5ZR] Zombie simultaneous limit=" + live_limit +
+        " engine_ai_limit=" + engine_limit + " (stock live=24, hard actor ceiling=32).");
 }
 
 main()
 {
-    level.zr_mod_version = "0.8.0-beta.22";
+    level.zr_mod_version = "0.8.0-beta.23";
     level.zr_pending_resume = false;
     level.zr_resume_bootstrap_ready = false;
     level.zr_suppress_autosave = false;
@@ -2801,7 +2810,7 @@ main()
     if (GetDvar("zr_hud_scale_pct") == "")
         SetDvar("zr_hud_scale_pct", "100");
     if (GetDvar("zr_zombie_ai_limit") == "")
-        SetDvar("zr_zombie_ai_limit", "24");
+        SetDvar("zr_zombie_ai_limit", "30");
 
     if (GetDvar("zr_pap_multi") == "")
         SetDvar("zr_pap_multi", "1");
@@ -2828,5 +2837,5 @@ main()
     level thread zr_prepare_resume();
     level thread zr_watch_players();
 
-    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (stable rollback runtime + configurable zombie AI limit)");
+    println("[T5ZR] T5 Zombies Resume v" + level.zr_mod_version + " loaded (stable runtime + 30-zombie default with AI headroom)");
 }
